@@ -125,6 +125,7 @@ export default function Home() {
     e.preventDefault();
     if (validateAddress(walletAddress)) {
       const normalizedAddress = walletAddress.trim().toLowerCase();
+      setActiveWallet(normalizedAddress);
     }
   };
 
