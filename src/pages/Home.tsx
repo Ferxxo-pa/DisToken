@@ -110,7 +110,7 @@ export default function Home() {
     }
     // Basic Ethereum address validation (0x + 40 hex chars) or ENS (.eth)
     const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(trimmed);
-    const isValidENS = /^[a-zA-Z0-9-]+\.eth$/.test(trimmed);
+    const isValidENS = /^[a-zA-Z0-9-]+\.eth$/i.test(trimmed);
     
     if (!isValidAddress && !isValidENS) {
       setValidationError("Invalid wallet address or ENS name");
@@ -124,7 +124,7 @@ export default function Home() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateAddress(walletAddress)) {
-      setActiveWallet(walletAddress.trim());
+      const normalizedAddress = walletAddress.trim().toLowerCase();
     }
   };
 
