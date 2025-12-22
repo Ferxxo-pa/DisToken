@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
 
-import type { NFT } from "@/lib/nft";
+import type { NFT } from "@shared/types";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Maximize, Minimize, Pause, Play, Settings } from "lucide-react";
+import { ChevronLeft, ChevronRight, LayoutGrid, Maximize, Minimize, Pause, Play, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 interface NFTSlideshowProps {
@@ -25,6 +25,8 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [speed, setSpeed] = useState<keyof typeof SPEED_PRESETS>("normal");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [showGalleryHeader, setShowGalleryHeader] = useState(true);
   const [showFullscreenControls, setShowFullscreenControls] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -217,6 +219,7 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
 
       {/* Metadata Panel */}
       {!isFullscreen && (
+      <>
       <div className="border-t border-border/30 bg-background/80 backdrop-blur-sm">
         <div className="container py-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -265,6 +268,19 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
                 ) : (
                   <Play className="h-4 w-4" />
                 )}
+              </Button>
+
+              {/* Collection Gallery Toggle */}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  setIsGalleryOpen(!isGalleryOpen);
+                  setShowGalleryHeader(true);
+                }}
+                className="border-border/50 hover:bg-accent transition-colors h-9 w-9 rounded-full"
+              >
+                <LayoutGrid className="h-4 w-4" />
               </Button>
 
               {/* Speed Settings */}
@@ -322,7 +338,11 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
           </div>
         </div>
       </div>
+
+      </>
       )}
+
+
     </div>
 
     {/* Fullscreen Overlay */}
@@ -478,6 +498,19 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
                   )}
                 </Button>
 
+                {/* Collection Gallery Toggle */}
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setIsGalleryOpen(!isGalleryOpen);
+                    setShowGalleryHeader(true);
+                  }}
+                  className="border-white/30 bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm transition-colors h-9 w-9 rounded-full"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+
                 <Button
                   variant="outline"
                   size="icon"
@@ -518,6 +551,83 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
               </div>
             </div>
           )}
+        </div>
+      </div>
+    )}
+
+    {/* Collection Gallery Popover - Rendered last to appear on top */}
+    {isGalleryOpen && (
+      <div 
+        className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+        onClick={() => setIsGalleryOpen(false)}
+      >
+        <div 
+          className="bg-background border border-border/30 rounded-lg shadow-refined max-w-6xl w-full max-h-[80vh] overflow-auto"
+          onClick={(e) => e.stopPropagation()}
+          onScroll={(e) => {
+            const scrollTop = e.currentTarget.scrollTop;
+            setShowGalleryHeader(scrollTop < 50);
+          }}
+        >
+          <div className={`sticky top-0 bg-background/95 backdrop-blur-sm border-b border-border/30 p-4 flex items-center justify-between transition-all duration-300 ${
+            showGalleryHeader ? 'translate-y-0 opacity-100' : '-translate-y-full opacity-0'
+          }`}>
+            <h3 className="text-lg font-medium tracking-tight">{formatAddress(walletAddress)} gallery</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsGalleryOpen(false)}
+              className="border-border/50 hover:bg-accent transition-colors font-light"
+            >
+              Close
+            </Button>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {nfts.map((nft, index) => (
+                <button
+                  key={`${nft.contractAddress}-${nft.tokenId}`}
+                  onClick={() => {
+                    setCurrentIndex(index);
+                    setIsPlaying(false);
+                    setIsGalleryOpen(false);
+                  }}
+                  className={`group relative transition-all duration-300 rounded-lg ${
+                    index === currentIndex
+                      ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+                      : 'hover:scale-105'
+                  }`}
+                >
+                  <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                    {nft.imageUrl ? (
+                      <>
+                        <img
+                          src={nft.imageUrl}
+                          alt={nft.name || `NFT #${nft.tokenId}`}
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Subtle border effect - same as main view */}
+                        <div className="absolute inset-0 rounded-lg border border-border/20 pointer-events-none" />
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
+                        No image
+                      </div>
+                    )}
+                    {/* Hover overlay with name in bottom-left */}
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 p-2">
+                        <p className="text-white text-xs font-light line-clamp-2">
+                          {nft.name || `#${nft.tokenId}`}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )}
