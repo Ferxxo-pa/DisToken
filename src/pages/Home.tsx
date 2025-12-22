@@ -130,7 +130,7 @@ export default function Home() {
   };
 
   const handleExampleWallet = () => {
-    const exampleAddress = "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045";
+    const exampleAddress = "ezven.eth";
     setWalletAddress(exampleAddress);
     setActiveWallet(exampleAddress);
   };
