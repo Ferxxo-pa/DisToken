@@ -2,8 +2,21 @@ import { Button } from "@/components/ui/button";
 
 import type { NFT } from "@/lib/nft";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, LayoutGrid, Maximize, Minimize, Pause, Play, Settings } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, EyeOff, LayoutGrid, Maximize, Minimize, Pause, Pin, Play, Settings, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+// ── localStorage curation helpers ───────────────────────────
+
+function curKey(wallet: string, kind: 'hidden' | 'pinned') {
+  return `distoken:${kind}:${wallet.toLowerCase()}`;
+}
+function loadSet(key: string): Set<string> {
+  try { return new Set(JSON.parse(localStorage.getItem(key) ?? '[]')); }
+  catch { return new Set(); }
+}
+function saveSet(key: string, set: Set<string>) {
+  localStorage.setItem(key, JSON.stringify([...set]));
+}
 
 interface NFTSlideshowProps {
   nfts: NFT[];
@@ -20,7 +33,38 @@ const SPEED_PRESETS = {
   veryFast: { label: "Very Fast", value: 1500 },
 };
 
-export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFTSlideshowProps) {
+export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWallet }: NFTSlideshowProps) {
+  // ── Curation state ───────────────────────────────────────
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => loadSet(curKey(walletAddress, 'hidden')));
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => loadSet(curKey(walletAddress, 'pinned')));
+
+  // Pinned first, then rest, excluding hidden
+  const nfts = [
+    ...rawNfts.filter(n => pinnedIds.has(n.tokenId) && !hiddenIds.has(n.tokenId)),
+    ...rawNfts.filter(n => !pinnedIds.has(n.tokenId) && !hiddenIds.has(n.tokenId)),
+  ];
+
+  const toggleHide = useCallback((id: string) => {
+    setHiddenIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      saveSet(curKey(walletAddress, 'hidden'), next);
+      return next;
+    });
+    // Also unpin if hiding
+    setPinnedIds(prev => { const next = new Set(prev); next.delete(id); saveSet(curKey(walletAddress, 'pinned'), next); return next; });
+  }, [walletAddress]);
+
+  const togglePin = useCallback((id: string) => {
+    setPinnedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      saveSet(curKey(walletAddress, 'pinned'), next);
+      return next;
+    });
+  }, [walletAddress]);
+
+  // ── Slideshow state ──────────────────────────────────────
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -29,8 +73,17 @@ export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFT
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [showGalleryHeader, setShowGalleryHeader] = useState(true);
   const [showFullscreenControls, setShowFullscreenControls] = useState(true);
+  const [kenBurns, setKenBurns] = useState(true);
+  const [hoveredNFT, setHoveredNFT] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Reset index when nfts list changes (e.g., item hidden)
+  useEffect(() => {
+    if (currentIndex >= nfts.length && nfts.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [nfts.length]);
 
   const currentNFT = nfts[currentIndex];
   const currentSpeed = SPEED_PRESETS[speed].value;
@@ -186,18 +239,43 @@ export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFT
             className="w-full h-full flex items-center justify-center"
           >
             {currentNFT.imageUrl ? (
-              <div className="relative max-w-full max-h-full">
+              <div
+                className="relative max-w-full max-h-full group/nft"
+                onMouseEnter={() => setHoveredNFT(currentNFT.tokenId)}
+                onMouseLeave={() => setHoveredNFT(null)}
+                style={{ overflow: 'hidden', borderRadius: 8 }}
+              >
                 <img
                   src={currentNFT.imageUrl}
                   alt={currentNFT.name || "NFT"}
                   className="w-auto h-auto object-contain shadow-refined rounded-lg"
                   style={{
                     maxWidth: isFullscreen ? '90vw' : 'calc(100vw - 4rem)',
-                    maxHeight: isFullscreen ? '90vh' : 'calc(100vh - 350px)'
+                    maxHeight: isFullscreen ? '90vh' : 'calc(100vh - 350px)',
+                    animation: kenBurns && isPlaying ? 'kenBurns 8s ease-in-out infinite alternate' : 'none',
                   }}
                 />
-                {/* Subtle border effect */}
+                {/* Subtle border */}
                 <div className="absolute inset-0 rounded-lg border border-border/20 pointer-events-none" />
+                {/* Curation buttons — appear on hover */}
+                {hoveredNFT === currentNFT.tokenId && (
+                  <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+                    <button
+                      onClick={() => togglePin(currentNFT.tokenId)}
+                      title={pinnedIds.has(currentNFT.tokenId) ? 'Unpin' : 'Pin to front'}
+                      className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/80 transition-colors"
+                    >
+                      <Pin className={`h-3.5 w-3.5 ${pinnedIds.has(currentNFT.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
+                    </button>
+                    <button
+                      onClick={() => toggleHide(currentNFT.tokenId)}
+                      title="Hide from slideshow"
+                      className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-red-600/80 transition-colors"
+                    >
+                      <EyeOff className="h-3.5 w-3.5 text-white" />
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center border border-border/30 rounded-lg bg-muted/20">
@@ -308,27 +386,36 @@ export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFT
                   <Settings className="h-4 w-4" />
                 </Button>
                 {isSettingsOpen && (
-                  <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-white text-black rounded-md border border-black/20 shadow-lg z-50" data-settings-dropdown>
+                  <div className="absolute bottom-full right-0 mb-2 w-56 p-2 bg-white text-black rounded-md border border-black/20 shadow-lg z-50" data-settings-dropdown>
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-black/60 px-2 py-1">
-                        Slideshow Speed
-                      </p>
+                      <p className="text-xs font-semibold text-black/60 px-2 py-1">Slideshow Speed</p>
                       {Object.entries(SPEED_PRESETS).map(([key, { label }]) => (
                         <button
                           key={key}
-                          onClick={() => {
-                            handleSpeedChange(key as keyof typeof SPEED_PRESETS);
-                            setIsSettingsOpen(false);
-                          }}
-                          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${
-                            speed === key
-                              ? "bg-black text-white font-medium"
-                              : "hover:bg-black/10 font-normal text-black"
-                          }`}
-                        >
-                          {label}
-                        </button>
+                          onClick={() => { handleSpeedChange(key as keyof typeof SPEED_PRESETS); setIsSettingsOpen(false); }}
+                          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${speed === key ? "bg-black text-white font-medium" : "hover:bg-black/10 font-normal text-black"}`}
+                        >{label}</button>
                       ))}
+                      <div className="border-t border-black/10 mt-1 pt-1">
+                        <button
+                          onClick={() => setKenBurns(k => !k)}
+                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 transition-colors flex items-center justify-between"
+                        >
+                          <span>Ken Burns effect</span>
+                          <span className={`text-xs font-semibold ${kenBurns ? 'text-green-600' : 'text-black/40'}`}>{kenBurns ? 'ON' : 'OFF'}</span>
+                        </button>
+                      </div>
+                      {hiddenIds.size > 0 && (
+                        <div className="border-t border-black/10 mt-1 pt-1">
+                          <button
+                            onClick={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); setIsSettingsOpen(false); }}
+                            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 transition-colors flex items-center gap-2 text-red-600"
+                          >
+                            <Undo2 className="h-3.5 w-3.5" />
+                            Restore {hiddenIds.size} hidden NFT{hiddenIds.size !== 1 ? 's' : ''}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -554,27 +641,28 @@ export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFT
           
           {/* Settings dropdown - rendered outside motion.div to avoid opacity fade */}
           {isSettingsOpen && (
-            <div className="absolute bottom-24 right-6 w-48 p-2 bg-white text-black rounded-md border border-black/20 shadow-lg z-50" data-settings-dropdown>
+            <div className="absolute bottom-24 right-6 w-56 p-2 bg-white text-black rounded-md border border-black/20 shadow-lg z-50" data-settings-dropdown>
               <div className="space-y-1">
-                <p className="text-xs font-semibold text-black/60 px-2 py-1">
-                  Slideshow Speed
-                </p>
+                <p className="text-xs font-semibold text-black/60 px-2 py-1">Slideshow Speed</p>
                 {Object.entries(SPEED_PRESETS).map(([key, { label }]) => (
-                  <button
-                    key={key}
-                    onClick={() => {
-                      handleSpeedChange(key as keyof typeof SPEED_PRESETS);
-                      setIsSettingsOpen(false);
-                    }}
-                    className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${
-                      speed === key
-                        ? "bg-black text-white font-medium"
-                        : "hover:bg-black/10 font-normal text-black"
-                    }`}
-                  >
-                    {label}
-                  </button>
+                  <button key={key} onClick={() => { handleSpeedChange(key as keyof typeof SPEED_PRESETS); setIsSettingsOpen(false); }}
+                    className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${speed === key ? "bg-black text-white font-medium" : "hover:bg-black/10 font-normal text-black"}`}
+                  >{label}</button>
                 ))}
+                <div className="border-t border-black/10 mt-1 pt-1">
+                  <button onClick={() => setKenBurns(k => !k)} className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 transition-colors flex items-center justify-between">
+                    <span>Ken Burns effect</span>
+                    <span className={`text-xs font-semibold ${kenBurns ? 'text-green-600' : 'text-black/40'}`}>{kenBurns ? 'ON' : 'OFF'}</span>
+                  </button>
+                </div>
+                {hiddenIds.size > 0 && (
+                  <div className="border-t border-black/10 mt-1 pt-1">
+                    <button onClick={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); setIsSettingsOpen(false); }}
+                      className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 transition-colors flex items-center gap-2 text-red-600">
+                      <Undo2 className="h-3.5 w-3.5" /> Restore {hiddenIds.size} hidden
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -610,50 +698,65 @@ export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFT
             </Button>
           </div>
           <div className="p-6">
+            {/* Visible NFTs */}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {nfts.map((nft, index) => (
-                <button
-                  key={`${nft.contractAddress}-${nft.tokenId}`}
-                  onClick={() => {
-                    setCurrentIndex(index);
-                    setIsPlaying(false);
-                    setIsGalleryOpen(false);
-                  }}
-                  className={`group relative transition-all duration-300 rounded-lg ${
-                    index === currentIndex
-                      ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background'
-                      : 'hover:scale-105'
-                  }`}
-                >
-                  <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
-                    {nft.imageUrl ? (
-                      <>
-                        <img
-                          src={nft.imageUrl}
-                          alt={nft.name || `NFT #${nft.tokenId}`}
-                          className="w-full h-full object-cover"
-                        />
-                        {/* Subtle border effect - same as main view */}
-                        <div className="absolute inset-0 rounded-lg border border-border/20 pointer-events-none" />
-                      </>
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">
-                        No image
-                      </div>
-                    )}
-                    {/* Hover overlay with name in bottom-left */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                      <div className="absolute bottom-0 left-0 right-0 p-2">
-                        <p className="text-white text-xs font-light line-clamp-2">
-                          {nft.name || `#${nft.tokenId}`}
-                        </p>
+                <div key={`${nft.contractAddress}-${nft.tokenId}`} className="relative group/card">
+                  <button
+                    onClick={() => { setCurrentIndex(index); setIsPlaying(false); setIsGalleryOpen(false); }}
+                    className={`w-full relative transition-all duration-300 rounded-lg ${index === currentIndex ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : 'hover:scale-105'}`}
+                  >
+                    <div className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                      {nft.imageUrl ? (
+                        <>
+                          <img src={nft.imageUrl} alt={nft.name || `NFT #${nft.tokenId}`} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 rounded-lg border border-border/20 pointer-events-none" />
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground">No image</div>
+                      )}
+                      <div className="absolute inset-0 opacity-0 group-hover/card:opacity-100 transition-opacity">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-2">
+                          <p className="text-white text-xs font-light line-clamp-2">{nft.name || `#${nft.tokenId}`}</p>
+                        </div>
                       </div>
                     </div>
+                  </button>
+                  {/* Pin / Hide quick actions */}
+                  <div className="absolute top-1 right-1 gap-1 hidden group-hover/card:flex z-10">
+                    <button onClick={() => togglePin(nft.tokenId)} title="Pin to front" className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/90 transition-colors">
+                      <Pin className={`h-3 w-3 ${pinnedIds.has(nft.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
+                    </button>
+                    <button onClick={() => toggleHide(nft.tokenId)} title="Hide" className="w-6 h-6 rounded-full bg-black/60 flex items-center justify-center hover:bg-red-600 transition-colors">
+                      <EyeOff className="h-3 w-3 text-white" />
+                    </button>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
+            {/* Hidden NFTs section */}
+            {hiddenIds.size > 0 && (
+              <div className="mt-8 border-t border-border/30 pt-6">
+                <p className="text-xs font-medium text-muted-foreground mb-4 uppercase tracking-wider">Hidden ({hiddenIds.size})</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {rawNfts.filter(n => hiddenIds.has(n.tokenId)).map(nft => (
+                    <div key={nft.tokenId} className="relative group/card opacity-40 hover:opacity-80 transition-opacity">
+                      <div className="aspect-square rounded-lg overflow-hidden bg-muted">
+                        {nft.imageUrl && <img src={nft.imageUrl} alt={nft.name || ''} className="w-full h-full object-cover grayscale" />}
+                      </div>
+                      <button
+                        onClick={() => toggleHide(nft.tokenId)}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center hover:bg-green-600 transition-colors"
+                        title="Restore"
+                      >
+                        <Undo2 className="h-3 w-3 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

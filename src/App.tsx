@@ -5,22 +5,21 @@ import { Route, Switch } from "wouter";
 
 import Home from "./pages/Home";
 
+function WalletRoute({ params }: { params: { wallet: string } }) {
+  return <Home initialWallet={decodeURIComponent(params.wallet)} />;
+}
+
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
+      <Route path="/"               component={Home} />
+      {/* Direct wallet URL: /0x... or /ezven.eth or /solana-address */}
+      <Route path="/:wallet"        component={WalletRoute} />
+      <Route path="/404"            component={NotFound} />
+      <Route                        component={NotFound} />
     </Switch>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (

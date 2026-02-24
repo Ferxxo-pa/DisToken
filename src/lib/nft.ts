@@ -99,6 +99,39 @@ async function resolveSolDomain(domain: string): Promise<string> {
   return data.owner as string;
 }
 
+// ── Solana Spam Detection ────────────────────────────────────
+
+const SCAM_NAME_KEYWORDS = [
+  'claim', 'free mint', 'airdrop', 'voucher', 'rebate', 'congratulation',
+  'winner', 'whitelist spot', 'free nft', 'free token', 'reward', 'bonus',
+  'visit ', 'go to ', 'click here',
+];
+
+function isSolanaSpam(asset: any): boolean {
+  // 1. Burned token — definitely skip
+  if (asset.burnt) return true;
+
+  const meta   = asset.content?.metadata ?? {};
+  const name   = (meta.name        ?? '').toLowerCase();
+  const desc   = (meta.description ?? '').toLowerCase();
+  const text   = name + ' ' + desc;
+  const creators: any[] = asset.creators ?? asset.content?.creators ?? [];
+
+  // 2. URL in name or description — almost always a phishing/scam drop
+  if (/https?:\/\/|www\.|\.xyz|\.gg\/|t\.me\//.test(text)) return true;
+
+  // 3. Common scam keywords in name
+  if (SCAM_NAME_KEYWORDS.some(kw => name.includes(kw))) return true;
+
+  // 4. No verified creator AND no collection affiliation
+  //    Legitimate NFTs almost always have at least one of these
+  const hasVerifiedCreator = creators.some((c: any) => c.verified === true);
+  const hasCollection = (asset.grouping ?? []).some((g: any) => g.group_key === 'collection');
+  if (!hasVerifiedCreator && !hasCollection) return true;
+
+  return false;
+}
+
 async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
   const apiKey = import.meta.env.VITE_HELIUS_API_KEY;
   if (!apiKey) throw new Error('Helius API key not configured (VITE_HELIUS_API_KEY)');
@@ -151,12 +184,11 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
     .filter((asset: any) => {
       // Only include NFTs (interface = V1_NFT, ProgrammableNFT, V2_NFT, MplCoreAsset)
       const iface: string = asset.interface ?? '';
-      return (
-        iface.includes('NFT') ||
-        iface === 'MplCoreAsset' ||
-        iface === 'V1_NFT' ||
-        iface === 'ProgrammableNFT'
-      );
+      if (!(iface.includes('NFT') || iface === 'MplCoreAsset' || iface === 'V1_NFT' || iface === 'ProgrammableNFT')) {
+        return false;
+      }
+      // Spam / airdrop filter
+      return !isSolanaSpam(asset);
     })
     .map((asset: any) => {
       const content = asset.content ?? {};

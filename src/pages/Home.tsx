@@ -4,6 +4,7 @@ import { NFTSlideshow } from "@/components/NFTSlideshow";
 import { fetchNFTsForWallet, detectChain, type NFTCollection } from "@/lib/nft";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
 
 // Words ordered by length (shortest to longest)
 const CYCLING_WORDS = [
@@ -71,17 +72,22 @@ function CyclingHeroText() {
   );
 }
 
-export default function Home() {
-  const [walletAddress, setWalletAddress] = useState("");
-  const [activeWallet, setActiveWallet] = useState<string | null>(null);
+interface HomeProps {
+  initialWallet?: string;
+}
+
+export default function Home({ initialWallet }: HomeProps = {}) {
+  const [walletAddress, setWalletAddress] = useState(initialWallet ?? "");
+  const [activeWallet, setActiveWallet] = useState<string | null>(initialWallet ?? null);
   const [validationError, setValidationError] = useState("");
   const [isPageLoaded, setIsPageLoaded] = useState(false);
   const [nftData, setNftData] = useState<NFTCollection | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [, navigate] = useLocation();
+
   useEffect(() => {
-    // Trigger page load animation
     setIsPageLoaded(true);
   }, []);
 
@@ -117,25 +123,26 @@ export default function Home() {
     return true;
   };
 
+  const setWallet = (address: string) => {
+    const chain = detectChain(address.trim());
+    const normalized = chain === 'ethereum'
+      ? address.trim().toLowerCase()
+      : address.trim();
+    setActiveWallet(normalized);
+    navigate(`/${encodeURIComponent(normalized)}`);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateAddress(walletAddress)) {
-      // Don't lowercase Solana addresses — they're case-sensitive base58
-      const chain = detectChain(walletAddress.trim());
-      const normalized = chain === 'ethereum'
-        ? walletAddress.trim().toLowerCase()
-        : walletAddress.trim();
-      setActiveWallet(normalized);
-    }
+    if (validateAddress(walletAddress)) setWallet(walletAddress);
   };
 
   const handleExampleWallet = () => {
-    // Alternate between an ETH and Solana example on click
     const examples = ["ezven.eth", "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"];
     const current = walletAddress;
     const next = examples.find(e => e !== current) ?? examples[0];
     setWalletAddress(next);
-    setActiveWallet(next);
+    setWallet(next);
   };
 
   const handleChangeWallet = () => {
@@ -143,6 +150,7 @@ export default function Home() {
     setWalletAddress("");
     setNftData(null);
     setError(null);
+    navigate('/');
   };
 
   if (activeWallet) {
