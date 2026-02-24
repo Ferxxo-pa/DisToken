@@ -73,7 +73,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [showGalleryHeader, setShowGalleryHeader] = useState(true);
   const [showFullscreenControls, setShowFullscreenControls] = useState(true);
-  const [kenBurns, setKenBurns] = useState(true);
   const [hoveredNFT, setHoveredNFT] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -252,7 +251,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                   style={{
                     maxWidth: isFullscreen ? '90vw' : 'calc(100vw - 4rem)',
                     maxHeight: isFullscreen ? '90vh' : 'calc(100vh - 350px)',
-                    animation: kenBurns && isPlaying ? 'kenBurns 8s ease-in-out infinite alternate' : 'none',
                   }}
                 />
                 {/* Subtle border */}
@@ -396,15 +394,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                           className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${speed === key ? "bg-black text-white font-medium" : "hover:bg-black/10 font-normal text-black"}`}
                         >{label}</button>
                       ))}
-                      <div className="border-t border-black/10 mt-1 pt-1">
-                        <button
-                          onClick={() => setKenBurns(k => !k)}
-                          className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 transition-colors flex items-center justify-between"
-                        >
-                          <span>Ken Burns effect</span>
-                          <span className={`text-xs font-semibold ${kenBurns ? 'text-green-600' : 'text-black/40'}`}>{kenBurns ? 'ON' : 'OFF'}</span>
-                        </button>
-                      </div>
+
                       {hiddenIds.size > 0 && (
                         <div className="border-t border-black/10 mt-1 pt-1">
                           <button
@@ -649,12 +639,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                     className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${speed === key ? "bg-black text-white font-medium" : "hover:bg-black/10 font-normal text-black"}`}
                   >{label}</button>
                 ))}
-                <div className="border-t border-black/10 mt-1 pt-1">
-                  <button onClick={() => setKenBurns(k => !k)} className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 transition-colors flex items-center justify-between">
-                    <span>Ken Burns effect</span>
-                    <span className={`text-xs font-semibold ${kenBurns ? 'text-green-600' : 'text-black/40'}`}>{kenBurns ? 'ON' : 'OFF'}</span>
-                  </button>
-                </div>
+
                 {hiddenIds.size > 0 && (
                   <div className="border-t border-black/10 mt-1 pt-1">
                     <button onClick={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); setIsSettingsOpen(false); }}
