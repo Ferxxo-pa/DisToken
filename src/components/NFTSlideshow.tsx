@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 
-import type { NFT } from "@shared/types";
+import type { NFT } from "@/lib/nft";
 import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, LayoutGrid, Maximize, Minimize, Pause, Play, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
