@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 interface NFTSlideshowProps {
   nfts: NFT[];
   walletAddress: string;
+  chain?: 'ethereum' | 'solana';
   autoPlaySpeed?: number;
   onChangeWallet?: () => void;
 }
@@ -19,7 +20,7 @@ const SPEED_PRESETS = {
   veryFast: { label: "Very Fast", value: 1500 },
 };
 
-export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlideshowProps) {
+export function NFTSlideshow({ nfts, walletAddress, chain, onChangeWallet }: NFTSlideshowProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -138,13 +139,25 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
       <header className="border-b border-border/30 bg-background/80 backdrop-blur-sm">
         <div className="container py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
               <h1 className="text-base font-light tracking-tight">
                 DisToken belongs to{" "}
                 <span className="font-medium">
                   {formatAddress(walletAddress)}
                 </span>
               </h1>
+              {chain && (
+                <span
+                  className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                  style={
+                    chain === 'solana'
+                      ? { background: 'rgba(153,69,255,0.12)', borderColor: 'rgba(153,69,255,0.35)', color: '#9945FF' }
+                      : { background: 'rgba(98,126,234,0.12)', borderColor: 'rgba(98,126,234,0.35)', color: '#627EEA' }
+                  }
+                >
+                  {chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
+                </span>
+              )}
             </div>
             
             {onChangeWallet && (
@@ -411,12 +424,26 @@ export function NFTSlideshow({ nfts, walletAddress, onChangeWallet }: NFTSlidesh
           {/* Header with wallet info and exit button */}
           <div className="absolute top-0 left-0 right-0 p-6">
             <div className="flex items-center justify-between">
-              <h1 className="text-base font-light tracking-tight text-white">
-                DisToken belongs to{" "}
-                <span className="font-medium">
-                  {formatAddress(walletAddress)}
-                </span>
-              </h1>
+              <div className="flex items-center gap-3">
+                <h1 className="text-base font-light tracking-tight text-white">
+                  DisToken belongs to{" "}
+                  <span className="font-medium">
+                    {formatAddress(walletAddress)}
+                  </span>
+                </h1>
+                {chain && (
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full border"
+                    style={
+                      chain === 'solana'
+                        ? { background: 'rgba(153,69,255,0.2)', borderColor: 'rgba(153,69,255,0.5)', color: '#C084FC' }
+                        : { background: 'rgba(98,126,234,0.2)', borderColor: 'rgba(98,126,234,0.5)', color: '#93A8F4' }
+                    }
+                  >
+                    {chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
+                  </span>
+                )}
+              </div>
               <Button
                 onClick={toggleFullscreen}
                 variant="outline"

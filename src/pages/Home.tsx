@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NFTSlideshow } from "@/components/NFTSlideshow";
-import { fetchNFTsForWallet, type NFTCollection } from "@/lib/nft";
+import { fetchNFTsForWallet, detectChain, type NFTCollection } from "@/lib/nft";
 import { Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -108,15 +108,11 @@ export default function Home() {
       setValidationError("Please enter a wallet address");
       return false;
     }
-    // Basic Ethereum address validation (0x + 40 hex chars) or ENS (.eth)
-    const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(trimmed);
-    const isValidENS = /^[a-zA-Z0-9-]+\.eth$/i.test(trimmed);
-    
-    if (!isValidAddress && !isValidENS) {
-      setValidationError("Invalid wallet address or ENS name");
+    const chain = detectChain(trimmed);
+    if (chain === 'unknown') {
+      setValidationError("Enter an Ethereum address (0x… / .eth) or Solana address / .sol domain");
       return false;
     }
-    
     setValidationError("");
     return true;
   };
@@ -124,15 +120,22 @@ export default function Home() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateAddress(walletAddress)) {
-      const normalizedAddress = walletAddress.trim().toLowerCase();
-      setActiveWallet(normalizedAddress);
+      // Don't lowercase Solana addresses — they're case-sensitive base58
+      const chain = detectChain(walletAddress.trim());
+      const normalized = chain === 'ethereum'
+        ? walletAddress.trim().toLowerCase()
+        : walletAddress.trim();
+      setActiveWallet(normalized);
     }
   };
 
   const handleExampleWallet = () => {
-    const exampleAddress = "ezven.eth";
-    setWalletAddress(exampleAddress);
-    setActiveWallet(exampleAddress);
+    // Alternate between an ETH and Solana example on click
+    const examples = ["ezven.eth", "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"];
+    const current = walletAddress;
+    const next = examples.find(e => e !== current) ?? examples[0];
+    setWalletAddress(next);
+    setActiveWallet(next);
   };
 
   const handleChangeWallet = () => {
@@ -215,6 +218,7 @@ export default function Home() {
         <NFTSlideshow
           nfts={nftData?.nfts || []}
           walletAddress={activeWallet}
+          chain={nftData?.chain}
           onChangeWallet={handleChangeWallet}
         />
       </div>
@@ -253,7 +257,7 @@ export default function Home() {
           >
             <CyclingHeroText />
             <p className="text-muted-foreground font-light max-w-md mx-auto">
-              Enter any Ethereum wallet address to curate your gallery.
+              Enter any Ethereum or Solana wallet to curate your gallery.
             </p>
           </div>
 
@@ -270,7 +274,7 @@ export default function Home() {
             <div className="relative">
               <Input
                 type="text"
-                placeholder="0x... or ENS name"
+                placeholder="0x… / vitalik.eth / Solana address / .sol"
                 value={walletAddress}
                 onChange={(e) => {
                   setWalletAddress(e.target.value);
@@ -337,7 +341,7 @@ export default function Home() {
                 Ezven.eth
               </a>
             </p>
-            <p style={{ fontWeight: 200 }}>V.1 for Ethereum</p>
+            <p style={{ fontWeight: 200 }}>V.2 — Ethereum + Solana</p>
           </div>
         </div>
       </footer>
