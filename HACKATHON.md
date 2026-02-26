@@ -1,94 +1,101 @@
 # DisToken — Graveyard Hack 2026
 
-**"NFT galleries are graveyard. OpenSea pivoted to licensing. Nifty Gateway shut down. Your collection deserves better than a dead marketplace."**
+**"NFT display tools are dead. Tokenframe bricked. LG Art Lab shut down. Your collection deserves better than a dead marketplace or a Canva slideshow."**
 
 ---
 
 ## One-Liner
-Enter any Ethereum wallet. Watch your NFTs.
+The ultimate NFT display tool — enter any Ethereum or Solana wallet, display art on any screen, with metadata preserved and smart rendering.
 
-## What It Is
-DisToken is a clean, focused NFT showcase tool. Enter any wallet address or ENS name — DisToken fetches your entire collection and presents it as a cinematic slideshow with fullscreen mode, gallery grid, and adjustable speed.
+## The Problem
+There is no clean way to display NFTs. Hardware frames cost $2,000 and [literally bricked when the company went broke](https://www.niftyist.com/post/how-to-un-brick-your-tokenframe). The manual workflow is: download → Canva → fix ratios → export video → lose all metadata. Every marketplace that tried "display" has shut down.
 
-No marketplace. No floor price. No speculation. Just your art, front and center.
+## The Origin
+Built by Ezven after hosting crypto events for Real Vision and TTU WAA where displaying NFTs meant right-click saving images and building Canva slideshows for specific screen ratios. The on-chain metadata — names, descriptions, provenance — all lost in the process.
 
----
+## What DisToken Does
 
-## The Graveyard
+**Enter any wallet address. Art displays on any screen. Zero friction.**
 
-NFT portfolio displays and galleries are extinct:
-- **OpenSea** — pivoted to licensing, creator tools, less about displaying
-- **Nifty Gateway** — shut down consumer product
-- **Zora** — pivoted to minting and distribution
-- **Most NFT dashboards** — analytics-first, ugly, abandoned
-
-The art people paid for is sitting in wallets with nowhere beautiful to show it. DisToken fixes that.
+- **Multi-chain** — Ethereum (Alchemy) + Solana (Helius DAS). ENS + .sol domains.
+- **Video/animation support** — MP4, WebM, GIF NFTs play natively. Browser-powered rendering beats every $2,000 hardware frame.
+- **Blurred palette backgrounds** — Smart ambient backgrounds sampled from the artwork's colors. No dead black bars on non-matching aspect ratios.
+- **Kiosk/TV mode** — `?mode=kiosk` URL param. Zero chrome. Cursor auto-hides. Open on any smart TV browser and forget it.
+- **Metadata preserved** — Toggle info overlay: piece name, collection, description. The data that makes NFTs valuable stays with the art.
+- **Collection filtering** — Filter by collection for curated displays.
+- **Public galleries** — Browse any wallet without connecting. `distoken.art/punk6529.eth` just works.
+- **Solana spam filter** — Auto-filters burned tokens, phishing airdrops, scam drops.
+- **No hardware dependency** — A URL can't be bricked.
 
 ---
 
 ## Track Pitches
 
-### 🔗 Tapestry Onchain Social
-Your NFT collection IS your onchain identity. The wallets you hold, the collections you have — they're social signals. DisToken makes them displayable, shareable, beautiful. It's a social showcase layer for onchain art. Enter `vitalik.eth`. Enter any wallet. Your collection tells a story — DisToken lets you tell it.
-
 ### 🏆 Overall Pool
-- **Dead category**: NFT galleries, portfolio displays — most are dead or abandoned
-- **Working product**: Clean, polished, deploys in 1 click
-- **Real utility**: Anyone can use it right now with any Ethereum wallet
-- **Zero friction**: No sign up, no wallet connect, just paste an address
+- **Dead category revived**: NFT display tools are a graveyard — Tokenframe bricked, LG shut down, Nifty Gateway gone
+- **Real problem, real solution**: Built from firsthand pain at crypto events
+- **Working product**: Live at distoken.art, open source, zero friction
+- **Solana-native**: Helius DAS integration, .sol domains, spam filtering, video NFT support
+
+### 🔗 Tapestry Onchain Social
+Your NFT collection IS your onchain identity. DisToken makes it displayable and shareable — enter any wallet and see their taste, their art, their story. It's the social showcase layer for onchain art that doesn't exist anywhere else.
 
 ---
 
 ## What's Live
-- ✅ Fetch any Ethereum wallet's NFT collection (Alchemy API)
-- ✅ ENS name support (e.g. vitalik.eth)
-- ✅ Cinematic slideshow with Framer Motion transitions
-- ✅ Fullscreen mode with hover-to-reveal controls
-- ✅ Gallery grid — see all NFTs, click to jump
-- ✅ Speed presets (slow / normal / fast / very fast)
-- ✅ Keyboard navigation (arrows, spacebar, F)
-- ✅ Clean minimal UI — light mode, typography-first
+- ✅ Multi-chain: Ethereum + Solana with auto-detection
+- ✅ Video/animation NFT playback (MP4, WebM, GIF)
+- ✅ Blurred palette ambient backgrounds
+- ✅ Kiosk/TV mode (zero-chrome display URL)
+- ✅ Metadata info overlay toggle
+- ✅ Collection filter dropdown
+- ✅ Gallery grid with pin/hide curation
+- ✅ Solana spam detection (burned, phishing, unverified)
+- ✅ ENS + .sol domain resolution
+- ✅ Keyboard shortcuts (arrows, space, F, I, Esc)
+- ✅ Speed presets + auto-advance
+- ✅ Shareable wallet URLs
 
 ---
 
 ## Demo Script
 
-### 1. Landing (15 seconds)
-- Show homepage — cycling hero text (NFTs / jpegs / assets / tokens / digital art)
-- Type: `vitalik.eth`
-- Hit View Collection
+### 1. The Problem (10 seconds)
+"I hosted events for Real Vision and TTU WAA. To display NFTs on a projector, I had to right-click save images, make a Canva slideshow, fix every aspect ratio, and export a video. All the metadata — names, descriptions, provenance — lost. That's insane for an art form built on data."
 
-### 2. Slideshow (30 seconds)
-- Collection loads, first NFT appears with fade transition
-- Let 2-3 cycle through automatically
-- Hit fullscreen — entire screen is art
-- Arrow keys to navigate
-- Hit Gallery icon — show all NFTs in grid
+### 2. The Solution (15 seconds)
+- Open distoken.art
+- Type a Solana address with video NFTs
+- Collection loads instantly with ambient blurred backgrounds
 
-### 3. ENS power (15 seconds)
-- Go back, enter another known wallet or ENS
-- Show it works for any wallet instantly
+### 3. Display Features (30 seconds)
+- Show video NFT playing smoothly
+- Toggle metadata overlay (I key) — show name, collection, description
+- Filter by collection — "just show the Art Blocks"
+- Hit fullscreen — gallery-quality display
+- Show `?mode=kiosk` — "put this URL on any TV and walk away"
+
+### 4. Public Gallery (15 seconds)
+- Enter `vitalik.eth` — browse the entire collection
+- "No wallet connect needed. Anyone can view anyone's art."
 
 ---
 
 ## Tech Stack
 - React + Vite + TypeScript
 - Framer Motion (transitions)
-- Alchemy NFT API v2 (Ethereum mainnet)
+- Alchemy NFT API v2 (Ethereum)
+- Helius DAS API (Solana)
 - Tailwind CSS + Radix UI
-- Vercel deploy
-
----
+- Vercel
 
 ## Team
-- **Ezven** — built it
-
----
+- **Ezven** — [x.com/EzvenG](https://x.com/EzvenG)
 
 ## Links
-- Repo: https://github.com/Ferxxo-pa/DisToken
-- Live: [deploy to Vercel]
+- Live: [distoken.art](https://www.distoken.art)
+- Repo: [github.com/Ferxxo-pa/DisToken](https://github.com/Ferxxo-pa/DisToken)
 
 ---
 
-*Built for Graveyard Hack 2026. Deadline: Feb 27.*
+*Built for Graveyard Hack 2026. NFT galleries died. DisToken brought them back.*

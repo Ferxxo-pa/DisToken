@@ -74,9 +74,10 @@ function CyclingHeroText() {
 
 interface HomeProps {
   initialWallet?: string;
+  kioskMode?: boolean;
 }
 
-export default function Home({ initialWallet }: HomeProps = {}) {
+export default function Home({ initialWallet, kioskMode = false }: HomeProps = {}) {
   const [walletAddress, setWalletAddress] = useState(initialWallet ?? "");
   const [activeWallet, setActiveWallet] = useState<string | null>(initialWallet ?? null);
   const [validationError, setValidationError] = useState("");
@@ -228,6 +229,7 @@ export default function Home({ initialWallet }: HomeProps = {}) {
           walletAddress={activeWallet}
           chain={nftData?.chain}
           onChangeWallet={handleChangeWallet}
+          kioskMode={kioskMode}
         />
       </div>
     );

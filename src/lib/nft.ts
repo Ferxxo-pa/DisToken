@@ -1,3 +1,5 @@
+export type MediaType = 'image' | 'video' | 'audio' | 'html' | 'unknown';
+
 export interface NFT {
   tokenId: string;
   contractAddress: string;
@@ -5,7 +7,23 @@ export interface NFT {
   name: string;
   description: string;
   imageUrl: string;
+  animationUrl?: string;
+  mediaType: MediaType;
   metadata?: any;
+}
+
+/** Detect media type from URL or mime string */
+export function detectMediaType(url?: string, mime?: string): MediaType {
+  if (!url && !mime) return 'image';
+  const m = (mime || '').toLowerCase();
+  const u = (url || '').toLowerCase().split('?')[0];
+  if (m.startsWith('video/') || /\.(mp4|webm|ogv|mov)$/.test(u)) return 'video';
+  if (m.startsWith('audio/') || /\.(mp3|wav|ogg|flac)$/.test(u)) return 'audio';
+  if (m === 'text/html' || m.includes('html') || /\.html?$/.test(u)) return 'html';
+  if (m.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/.test(u)) return 'image';
+  // If animation_url exists but type unclear, assume video
+  if (url && !mime) return 'video';
+  return 'image';
 }
 
 export interface NFTCollection {
@@ -59,25 +77,35 @@ async function fetchEthereumNFTs(walletAddress: string): Promise<NFTCollection> 
 
   const data = await response.json();
 
-  const nfts: NFT[] = (data.ownedNfts || []).map((nft: any) => ({
-    tokenId: nft.tokenId || nft.id?.tokenId || 'unknown',
-    contractAddress: nft.contract?.address || '',
-    collectionName: nft.contract?.name || nft.title || 'Unknown Collection',
-    name: nft.title || nft.name || `#${nft.tokenId}`,
-    description: nft.description || nft.metadata?.description || '',
-    imageUrl:
+  const nfts: NFT[] = (data.ownedNfts || []).map((nft: any) => {
+    const animUrl: string =
+      nft.metadata?.animation_url ||
+      nft.media?.find((m: any) => m.format === 'mp4' || m.format === 'webm')?.gateway ||
+      '';
+    const imgUrl: string =
       nft.media?.[0]?.gateway ||
       nft.media?.[0]?.raw ||
       nft.metadata?.image ||
       nft.image?.originalUrl ||
-      '',
-    metadata: nft.metadata,
-  }));
+      '';
+    const mime: string = nft.media?.[0]?.format || '';
+    return {
+      tokenId: nft.tokenId || nft.id?.tokenId || 'unknown',
+      contractAddress: nft.contract?.address || '',
+      collectionName: nft.contract?.name || nft.title || 'Unknown Collection',
+      name: nft.title || nft.name || `#${nft.tokenId}`,
+      description: nft.description || nft.metadata?.description || '',
+      imageUrl: imgUrl,
+      animationUrl: animUrl || undefined,
+      mediaType: detectMediaType(animUrl || imgUrl, mime),
+      metadata: nft.metadata,
+    };
+  });
 
   return {
     owner: walletAddress,
     chain: 'ethereum',
-    nfts: nfts.filter(n => n.imageUrl),
+    nfts: nfts.filter(n => n.imageUrl || n.animationUrl),
     totalCount: nfts.length,
   };
 }
@@ -196,6 +224,10 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
       const files: any[] = content.files ?? [];
 
       // Best image: prefer cdn_uri, then uri from files, then json_uri
+      // Find video/animation file first, then image
+      const videoFile = files.find((f: any) =>
+        f.mime?.startsWith('video/') || /\.(mp4|webm|ogv)$/i.test(f.uri || '')
+      );
       const imageFile = files.find((f: any) =>
         f.mime?.startsWith('image/') || f.cdn_uri || f.uri
       );
@@ -203,6 +235,12 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
         imageFile?.cdn_uri ||
         imageFile?.uri ||
         content.links?.image ||
+        '';
+      const animationUrl =
+        videoFile?.cdn_uri ||
+        videoFile?.uri ||
+        meta.animation_url ||
+        content.links?.animation_url ||
         '';
 
       const collectionGroup = (asset.grouping ?? []).find(
@@ -216,10 +254,12 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
         name: meta.name || asset.id || 'Unknown',
         description: meta.description || '',
         imageUrl,
+        animationUrl: animationUrl || undefined,
+        mediaType: detectMediaType(animationUrl || imageUrl, videoFile?.mime || imageFile?.mime),
         metadata: meta,
       };
     })
-    .filter((n: NFT) => n.imageUrl);
+    .filter((n: NFT) => n.imageUrl || n.animationUrl);
 
   return {
     owner,

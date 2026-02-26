@@ -1,18 +1,28 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, useSearch } from "wouter";
 
 import Home from "./pages/Home";
 
 function WalletRoute({ params }: { params: { wallet: string } }) {
-  return <Home initialWallet={decodeURIComponent(params.wallet)} />;
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const kiosk = searchParams.get('mode') === 'kiosk';
+  return <Home initialWallet={decodeURIComponent(params.wallet)} kioskMode={kiosk} />;
+}
+
+function HomeRoute() {
+  const search = useSearch();
+  const searchParams = new URLSearchParams(search);
+  const kiosk = searchParams.get('mode') === 'kiosk';
+  return <Home kioskMode={kiosk} />;
 }
 
 function Router() {
   return (
     <Switch>
-      <Route path="/"               component={Home} />
+      <Route path="/"               component={HomeRoute} />
       {/* Direct wallet URL: /0x... or /ezven.eth or /solana-address */}
       <Route path="/:wallet"        component={WalletRoute} />
       <Route path="/404"            component={NotFound} />
