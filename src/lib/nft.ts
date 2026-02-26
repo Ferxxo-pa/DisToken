@@ -1,5 +1,90 @@
 export type MediaType = 'image' | 'video' | 'audio' | 'html' | 'unknown';
 
+// ── IPFS / Arweave Gateway Handling ──────────────────────────
+
+const IPFS_GATEWAYS = [
+  'https://nftstorage.link/ipfs/',
+  'https://cloudflare-ipfs.com/ipfs/',
+  'https://ipfs.io/ipfs/',
+  'https://gateway.pinata.cloud/ipfs/',
+];
+
+const ARWEAVE_GATEWAY = 'https://arweave.net/';
+
+/** Resolve IPFS/Arweave URIs to HTTP gateway URLs with fallback support */
+export function resolveUri(uri: string): string {
+  if (!uri) return uri;
+  const trimmed = uri.trim();
+
+  // ipfs:// protocol
+  if (trimmed.startsWith('ipfs://')) {
+    const cid = trimmed.replace('ipfs://', '');
+    return IPFS_GATEWAYS[0] + cid;
+  }
+
+  // ar:// protocol (Arweave)
+  if (trimmed.startsWith('ar://')) {
+    return ARWEAVE_GATEWAY + trimmed.replace('ar://', '');
+  }
+
+  // Already HTTP(S), but might be a slow IPFS gateway — rewrite to faster one
+  if (trimmed.includes('/ipfs/') && !trimmed.includes('nftstorage.link') && !trimmed.includes('cloudflare-ipfs')) {
+    const cidPath = trimmed.split('/ipfs/').slice(1).join('/ipfs/');
+    return IPFS_GATEWAYS[0] + cidPath;
+  }
+
+  return trimmed;
+}
+
+/** Try loading an image URL; if it fails, try IPFS gateway fallbacks */
+export function resolveWithFallbacks(uri: string): string[] {
+  if (!uri) return [];
+  const primary = resolveUri(uri);
+  const results = [primary];
+
+  // If it's an IPFS URL, add fallback gateways
+  if (uri.startsWith('ipfs://')) {
+    const cid = uri.replace('ipfs://', '');
+    IPFS_GATEWAYS.forEach(gw => {
+      const url = gw + cid;
+      if (url !== primary) results.push(url);
+    });
+  }
+
+  return results;
+}
+
+/** Preload an image and return the first working URL */
+export function preloadImage(urls: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let remaining = urls.length;
+    if (remaining === 0) reject(new Error('No URLs'));
+
+    // Try all in order, resolve with first success
+    let resolved = false;
+    urls.forEach((url, i) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (!resolved) { resolved = true; resolve(url); }
+      };
+      img.onerror = () => {
+        remaining--;
+        // If this was the primary and we have more to try, wait
+        if (remaining <= 0 && !resolved) reject(new Error('All URLs failed'));
+      };
+      // Stagger fallback attempts slightly
+      setTimeout(() => { img.src = url; }, i * 200);
+    });
+  });
+}
+
+/** Detect pixel art by checking if original dimensions are very small */
+export function isLikelyPixelArt(width?: number, height?: number): boolean {
+  if (!width || !height) return false;
+  return (width <= 128 && height <= 128);
+}
+
 export interface NFT {
   tokenId: string;
   contractAddress: string;
@@ -10,6 +95,9 @@ export interface NFT {
   animationUrl?: string;
   mediaType: MediaType;
   metadata?: any;
+  /** Original image dimensions if available (for pixel art detection) */
+  originalWidth?: number;
+  originalHeight?: number;
 }
 
 /** Detect media type from URL or mime string */
@@ -78,17 +166,22 @@ async function fetchEthereumNFTs(walletAddress: string): Promise<NFTCollection> 
   const data = await response.json();
 
   const nfts: NFT[] = (data.ownedNfts || []).map((nft: any) => {
-    const animUrl: string =
+    const rawAnimUrl: string =
       nft.metadata?.animation_url ||
       nft.media?.find((m: any) => m.format === 'mp4' || m.format === 'webm')?.gateway ||
       '';
-    const imgUrl: string =
+    const rawImgUrl: string =
       nft.media?.[0]?.gateway ||
       nft.media?.[0]?.raw ||
       nft.metadata?.image ||
       nft.image?.originalUrl ||
       '';
     const mime: string = nft.media?.[0]?.format || '';
+    const imgUrl = resolveUri(rawImgUrl);
+    const animUrl = resolveUri(rawAnimUrl);
+    // Extract dimensions if available (Alchemy sometimes provides these)
+    const w = nft.media?.[0]?.resolution?.width;
+    const h = nft.media?.[0]?.resolution?.height;
     return {
       tokenId: nft.tokenId || nft.id?.tokenId || 'unknown',
       contractAddress: nft.contract?.address || '',
@@ -99,6 +192,8 @@ async function fetchEthereumNFTs(walletAddress: string): Promise<NFTCollection> 
       animationUrl: animUrl || undefined,
       mediaType: detectMediaType(animUrl || imgUrl, mime),
       metadata: nft.metadata,
+      originalWidth: w,
+      originalHeight: h,
     };
   });
 
@@ -231,21 +326,26 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
       const imageFile = files.find((f: any) =>
         f.mime?.startsWith('image/') || f.cdn_uri || f.uri
       );
-      const imageUrl =
+      const rawImageUrl =
         imageFile?.cdn_uri ||
         imageFile?.uri ||
         content.links?.image ||
         '';
-      const animationUrl =
+      const rawAnimationUrl =
         videoFile?.cdn_uri ||
         videoFile?.uri ||
         meta.animation_url ||
         content.links?.animation_url ||
         '';
+      const imageUrl = resolveUri(rawImageUrl);
+      const animationUrl = resolveUri(rawAnimationUrl);
 
       const collectionGroup = (asset.grouping ?? []).find(
         (g: any) => g.group_key === 'collection'
       );
+
+      // Helius sometimes provides image dimensions in content
+      const imgDim = content.links?.image_dimensions;
 
       return {
         tokenId: asset.id ?? 'unknown',
@@ -257,6 +357,8 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
         animationUrl: animationUrl || undefined,
         mediaType: detectMediaType(animationUrl || imageUrl, videoFile?.mime || imageFile?.mime),
         metadata: meta,
+        originalWidth: imgDim?.width,
+        originalHeight: imgDim?.height,
       };
     })
     .filter((n: NFT) => n.imageUrl || n.animationUrl);
