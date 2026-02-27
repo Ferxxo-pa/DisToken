@@ -407,7 +407,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
 
   // ── Ambience ─────────────────────────────────────────────
   // Ambience — Pro roadmap
-  const [showNameOnSwitch, setShowNameOnSwitch] = useState(true);
+  const [showNameOnSwitch, setShowNameOnSwitch] = useState(false);
 
   // ── Auto-collections filter ──────────────────────────────
   const [activeAutoGroup, setActiveAutoGroup] = useState<AutoGroupKey | null>(null);
