@@ -1,7 +1,10 @@
 // ── Phone Remote Control ────────────────────────────────────
-// Uses BroadcastChannel API for same-origin tab communication.
-// TV/kiosk tab acts as receiver, phone browser tab acts as sender.
-// Shared via a simple room code in the URL.
+// Uses PeerJS (WebRTC) for cross-device real-time communication.
+// TV/kiosk = host (creates peer with room code as ID).
+// Phone = client (connects to host peer ID).
+// No backend, no accounts, free relay server.
+
+import Peer, { DataConnection } from 'peerjs';
 
 export type RemoteCommand =
   | { type: 'next' }
@@ -33,69 +36,149 @@ export interface RemoteState {
   walletAddress: string;
 }
 
-const CHANNEL_PREFIX = 'distoken-remote-';
+const PEER_PREFIX = 'distoken-';
 
 export function generateRoomCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-export function createRemoteChannel(roomCode: string): BroadcastChannel {
-  return new BroadcastChannel(CHANNEL_PREFIX + roomCode);
-}
-
-/** Host (TV/kiosk) side — listens for commands, sends state updates */
+/** Host (TV/kiosk) side — listens for connections, receives commands, sends state */
 export class RemoteHost {
-  private channel: BroadcastChannel;
+  private peer: Peer;
+  private connections: DataConnection[] = [];
   private onCommand: (cmd: RemoteCommand) => void;
   public roomCode: string;
+  private _ready: Promise<void>;
+  private _destroyed = false;
 
   constructor(roomCode: string, onCommand: (cmd: RemoteCommand) => void) {
     this.roomCode = roomCode;
     this.onCommand = onCommand;
-    this.channel = createRemoteChannel(roomCode);
-    this.channel.onmessage = (e) => {
-      const cmd = e.data as RemoteCommand;
-      if (cmd.type === 'ping') {
-        // Respond with current state — handled by caller
-        this.onCommand(cmd);
-      } else {
-        this.onCommand(cmd);
-      }
-    };
+    this.peer = new Peer(PEER_PREFIX + roomCode, {
+      debug: 0,
+    });
+
+    this._ready = new Promise((resolve, reject) => {
+      this.peer.on('open', () => resolve());
+      this.peer.on('error', (err) => {
+        console.warn('[RemoteHost] Peer error:', err.type, err.message);
+        // If ID is taken, it means another host has this room code
+        if (err.type === 'unavailable-id') {
+          reject(new Error('Room code already in use'));
+        }
+      });
+    });
+
+    this.peer.on('connection', (conn) => {
+      conn.on('open', () => {
+        this.connections.push(conn);
+        conn.on('data', (data) => {
+          this.onCommand(data as RemoteCommand);
+        });
+        conn.on('close', () => {
+          this.connections = this.connections.filter(c => c !== conn);
+        });
+      });
+    });
+  }
+
+  get ready() {
+    return this._ready;
   }
 
   sendState(state: RemoteState) {
-    this.channel.postMessage({ type: 'pong', state } as RemoteCommand);
+    if (this._destroyed) return;
+    const msg: RemoteCommand = { type: 'pong', state };
+    this.connections.forEach(conn => {
+      if (conn.open) conn.send(msg);
+    });
   }
 
   destroy() {
-    this.channel.close();
+    this._destroyed = true;
+    this.connections.forEach(c => c.close());
+    this.peer.destroy();
   }
 }
 
-/** Client (phone) side — sends commands, receives state */
+/** Client (phone) side — connects to host, sends commands, receives state */
 export class RemoteClient {
-  private channel: BroadcastChannel;
+  private peer: Peer;
+  private conn: DataConnection | null = null;
   private onState: (state: RemoteState) => void;
+  private onConnected: (() => void) | null = null;
+  private onDisconnected: (() => void) | null = null;
+  private _destroyed = false;
+  private roomCode: string;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  constructor(roomCode: string, onState: (state: RemoteState) => void) {
+  constructor(
+    roomCode: string,
+    onState: (state: RemoteState) => void,
+    opts?: { onConnected?: () => void; onDisconnected?: () => void }
+  ) {
+    this.roomCode = roomCode;
     this.onState = onState;
-    this.channel = createRemoteChannel(roomCode);
-    this.channel.onmessage = (e) => {
-      const msg = e.data as RemoteCommand;
+    this.onConnected = opts?.onConnected ?? null;
+    this.onDisconnected = opts?.onDisconnected ?? null;
+
+    // Client gets a random ID
+    this.peer = new Peer(undefined as any, { debug: 0 });
+    this.peer.on('open', () => {
+      this.connectToHost();
+    });
+    this.peer.on('error', (err) => {
+      console.warn('[RemoteClient] Peer error:', err.type, err.message);
+      if (err.type === 'peer-unavailable') {
+        // Host not found — retry
+        this.scheduleReconnect();
+      }
+    });
+  }
+
+  private connectToHost() {
+    if (this._destroyed) return;
+    const conn = this.peer.connect(PEER_PREFIX + this.roomCode, { reliable: true });
+
+    conn.on('open', () => {
+      this.conn = conn;
+      this.onConnected?.();
+      // Request initial state
+      conn.send({ type: 'ping' });
+    });
+
+    conn.on('data', (data) => {
+      const msg = data as RemoteCommand;
       if (msg.type === 'pong') {
         this.onState(msg.state);
       }
-    };
-    // Request initial state
-    this.send({ type: 'ping' });
+    });
+
+    conn.on('close', () => {
+      this.conn = null;
+      this.onDisconnected?.();
+      this.scheduleReconnect();
+    });
+  }
+
+  private scheduleReconnect() {
+    if (this._destroyed) return;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.connectToHost();
+    }, 3000);
   }
 
   send(cmd: RemoteCommand) {
-    this.channel.postMessage(cmd);
+    if (this.conn?.open) {
+      this.conn.send(cmd);
+    }
   }
 
   destroy() {
-    this.channel.close();
+    this._destroyed = true;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.conn?.close();
+    this.peer.destroy();
   }
 }

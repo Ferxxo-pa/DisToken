@@ -37,26 +37,20 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
     const client = new RemoteClient(roomCode, (newState) => {
       setState(newState);
       setConnected(true);
+    }, {
+      onConnected: () => setConnected(true),
+      onDisconnected: () => setConnected(false),
     });
     clientRef.current = client;
 
+    // Ping for state updates periodically
     const pingInterval = setInterval(() => {
       client.send({ type: 'ping' });
     }, 2000);
 
-    let timeout: ReturnType<typeof setTimeout>;
-    const resetTimeout = () => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => setConnected(false), 5000);
-    };
-    resetTimeout();
-    const origOnState = client['onState'];
-    client['onState'] = (s) => { origOnState(s); resetTimeout(); };
-
     return () => {
       client.destroy();
       clearInterval(pingInterval);
-      clearTimeout(timeout);
     };
   }, [roomCode]);
 
@@ -296,7 +290,7 @@ export function RemoteQROverlay({
           </div>
 
           <p className="text-xs text-black/30 font-light">
-            Remote works between tabs in the same browser. For cross-device control, open the URL on both devices.
+            Open this URL on your phone to control the display. Works across devices — no app needed.
           </p>
 
           <button onClick={onClose} className="w-full py-3 rounded-xl bg-black text-white text-sm font-medium hover:bg-black/80 transition-colors">
