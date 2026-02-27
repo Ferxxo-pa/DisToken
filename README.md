@@ -9,7 +9,7 @@ Enter any Ethereum or Solana wallet address and get an instant, beautiful art ga
 ## Features
 
 ### Display
-- **Multi-chain** — Ethereum (0x… / .eth) and Solana (.sol) wallets
+- **Multi-chain** — Ethereum, Solana, Base, Polygon, Arbitrum, Optimism, Tezos, and Bitcoin Ordinals
 - **Multi-wallet** — Comma-separate addresses to merge collections
 - **5 backgrounds** — Blur fill, dark, light, color-match, custom color
 - **5 frame styles** — None, minimal, gallery white mat, modern shadow, ornate gold
@@ -52,20 +52,27 @@ Enter any Ethereum or Solana wallet address and get an instant, beautiful art ga
 
 ## Quick Start
 
-**Browser:**
+**1. Enter your wallet address** on [distoken.art](https://distoken.art) — or go directly:
 ```
 https://distoken.art/YOUR_WALLET_ADDRESS
 ```
 
-**Kiosk mode (TV/digital frame):**
+**2. Customize** — click the ⚙ Settings gear to adjust speed, transitions, backgrounds, and more.
+
+**3. Kiosk mode (TV/digital frame):**
 ```
 https://distoken.art/YOUR_WALLET_ADDRESS?mode=kiosk
 ```
+Open this URL on any device connected to a screen. That's it — zero chrome, just art.
+
+Find the ready-to-copy kiosk link in **⚙ Settings → Tools → Kiosk Link**.
 
 **Embed:**
 ```html
 <iframe src="https://distoken.art/YOUR_WALLET?embed=true" width="800" height="600" />
 ```
+
+**Supported wallets:** Ethereum (0x… / .eth), Solana (.sol), Tezos (tz… / .tez), Bitcoin (bc1… / 1… / 3…). EVM address automatically fetches from Ethereum + Base + Polygon + Arbitrum + Optimism.
 
 ## Keyboard Shortcuts
 
@@ -90,8 +97,10 @@ Works on every major device — Samsung, LG, Fire Stick, Chromecast, Apple TV, R
 - Tailwind CSS + Radix UI
 - Framer Motion
 - wouter (routing)
-- Alchemy API (Ethereum NFTs)
+- Alchemy API (Ethereum + Base + Polygon + Arbitrum + Optimism NFTs)
 - Helius DAS API (Solana NFTs)
+- TzKT API (Tezos NFTs)
+- Hiro Ordinals API (Bitcoin Inscriptions)
 - BroadcastChannel API (phone remote)
 - Service Worker (offline cache)
 

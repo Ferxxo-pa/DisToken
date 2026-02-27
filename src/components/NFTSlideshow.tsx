@@ -10,7 +10,7 @@ import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 
 import type { NFT } from "@/lib/nft";
-import { isLikelyPixelArt } from "@/lib/nft";
+import { isLikelyPixelArt, chainBadge } from "@/lib/nft";
 import type { Playlist } from "@/lib/playlists";
 import { loadPlaylists } from "@/lib/playlists";
 import { RemoteHost, generateRoomCode, type RemoteCommand } from "@/lib/remote";
@@ -1048,7 +1048,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                         style={currentNFT?.chain === 'solana'
                           ? { background: 'rgba(153,69,255,0.2)', borderColor: 'rgba(153,69,255,0.5)', color: '#C084FC' }
                           : { background: 'rgba(98,126,234,0.2)', borderColor: 'rgba(98,126,234,0.5)', color: '#93A8F4' }}>
-                        {currentNFT?.chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
+                        {chainBadge(currentNFT?.chain || 'ethereum')}
                       </span>
                     )}
                     {selectedCollection && (
@@ -1202,7 +1202,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                     style={currentNFT?.chain === 'solana'
                       ? { background: 'rgba(153,69,255,0.12)', borderColor: 'rgba(153,69,255,0.35)', color: '#9945FF' }
                       : { background: 'rgba(98,126,234,0.12)', borderColor: 'rgba(98,126,234,0.35)', color: '#627EEA' }}>
-                    {currentNFT?.chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
+                    {chainBadge(currentNFT?.chain || 'ethereum')}
                   </span>
                 )}
                 {selectedCollection && (

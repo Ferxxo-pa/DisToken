@@ -99,7 +99,7 @@ export interface NFT {
   originalWidth?: number;
   originalHeight?: number;
   /** Which chain this NFT is on */
-  chain?: 'ethereum' | 'solana';
+  chain?: Chain;
 }
 
 /** Detect media type from URL or mime string */
@@ -118,7 +118,7 @@ export function detectMediaType(url?: string, mime?: string): MediaType {
 
 export interface NFTCollection {
   owner: string;
-  chain: 'ethereum' | 'solana';
+  chain: Chain;
   nfts: NFT[];
   totalCount: number;
 }
@@ -144,7 +144,7 @@ export async function fetchMultiWallet(addresses: string[]): Promise<NFTCollecti
 
 // ── Chain Detection ──────────────────────────────────────────
 
-export type Chain = 'ethereum' | 'solana' | 'unknown';
+export type Chain = 'ethereum' | 'solana' | 'base' | 'polygon' | 'arbitrum' | 'optimism' | 'tezos' | 'bitcoin' | 'unknown';
 
 export function detectChain(address: string): Chain {
   const trimmed = address.trim();
@@ -152,6 +152,13 @@ export function detectChain(address: string): Chain {
   if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) return 'ethereum';
   // ENS domain
   if (/^[a-zA-Z0-9-]+\.eth$/i.test(trimmed)) return 'ethereum';
+  // Tezos: tz1/tz2/tz3/KT1 addresses
+  if (/^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$/.test(trimmed)) return 'tezos';
+  // Tezos .tez domain
+  if (/^[a-zA-Z0-9-]+\.tez$/i.test(trimmed)) return 'tezos';
+  // Bitcoin: bc1 (bech32/taproot), 1... (P2PKH), 3... (P2SH)
+  if (/^bc1[a-zA-HJ-NP-Za-km-z0-9]{25,62}$/.test(trimmed)) return 'bitcoin';
+  if (/^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(trimmed)) return 'bitcoin';
   // Solana .sol domain (Bonfida SNS)
   if (/^[a-zA-Z0-9-]+\.sol$/i.test(trimmed)) return 'solana';
   // Solana: base58, 32–44 chars (no 0, O, I, l)
@@ -160,9 +167,34 @@ export function detectChain(address: string): Chain {
 }
 
 export function chainLabel(chain: Chain): string {
-  if (chain === 'ethereum') return 'Ethereum';
-  if (chain === 'solana') return 'Solana';
-  return 'Unknown';
+  const labels: Record<Chain, string> = {
+    ethereum: 'Ethereum',
+    solana: 'Solana',
+    base: 'Base',
+    polygon: 'Polygon',
+    arbitrum: 'Arbitrum',
+    optimism: 'Optimism',
+    tezos: 'Tezos',
+    bitcoin: 'Bitcoin',
+    unknown: 'Unknown',
+  };
+  return labels[chain] || 'Unknown';
+}
+
+/** Chain badge symbol for display */
+export function chainBadge(chain: Chain): string {
+  const badges: Record<Chain, string> = {
+    ethereum: 'Ξ Ethereum',
+    solana: '◎ Solana',
+    base: '🔵 Base',
+    polygon: '🟣 Polygon',
+    arbitrum: '🔵 Arbitrum',
+    optimism: '🔴 Optimism',
+    tezos: 'ꜩ Tezos',
+    bitcoin: '₿ Bitcoin',
+    unknown: 'Unknown',
+  };
+  return badges[chain] || 'Unknown';
 }
 
 // ── Ethereum — Alchemy ───────────────────────────────────────
@@ -417,6 +449,209 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
   };
 }
 
+// ── EVM L2 Chains — Alchemy (same API key) ──────────────
+
+const ALCHEMY_CHAIN_URLS: Record<string, string> = {
+  base: 'https://base-mainnet.g.alchemy.com/nft/v2/',
+  polygon: 'https://polygon-mainnet.g.alchemy.com/nft/v2/',
+  arbitrum: 'https://arb-mainnet.g.alchemy.com/nft/v2/',
+  optimism: 'https://opt-mainnet.g.alchemy.com/nft/v2/',
+};
+
+async function fetchEVML2NFTs(walletAddress: string, chain: 'base' | 'polygon' | 'arbitrum' | 'optimism'): Promise<NFTCollection> {
+  const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY;
+  if (!apiKey) throw new Error('Alchemy API key not configured (VITE_ALCHEMY_API_KEY)');
+
+  const baseUrl = ALCHEMY_CHAIN_URLS[chain];
+  const url = `${baseUrl}${apiKey}/getNFTs`;
+  const params = new URLSearchParams({
+    owner: walletAddress,
+    withMetadata: 'true',
+    excludeFilters: 'SPAM',
+  });
+
+  const response = await fetch(`${url}?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  });
+
+  if (!response.ok) throw new Error(`Alchemy (${chain}) error: ${response.statusText}`);
+
+  const data = await response.json();
+
+  const nfts: NFT[] = (data.ownedNfts || []).map((nft: any) => {
+    const rawAnimUrl: string =
+      nft.metadata?.animation_url ||
+      nft.media?.find((m: any) => m.format === 'mp4' || m.format === 'webm')?.gateway ||
+      '';
+    const rawImgUrl: string =
+      nft.media?.[0]?.gateway ||
+      nft.media?.[0]?.raw ||
+      nft.metadata?.image ||
+      nft.image?.originalUrl ||
+      '';
+    const mime: string = nft.media?.[0]?.format || '';
+    const imgUrl = resolveUri(rawImgUrl);
+    const animUrl = resolveUri(rawAnimUrl);
+    const w = nft.media?.[0]?.resolution?.width;
+    const h = nft.media?.[0]?.resolution?.height;
+    return {
+      tokenId: nft.tokenId || nft.id?.tokenId || 'unknown',
+      contractAddress: nft.contract?.address || '',
+      collectionName: nft.contract?.name || nft.title || 'Unknown Collection',
+      name: nft.title || nft.name || `#${nft.tokenId}`,
+      description: nft.description || nft.metadata?.description || '',
+      imageUrl: imgUrl,
+      animationUrl: animUrl || undefined,
+      mediaType: detectMediaType(animUrl || imgUrl, mime),
+      metadata: nft.metadata,
+      originalWidth: w,
+      originalHeight: h,
+      chain: chain as Chain,
+    };
+  });
+
+  return {
+    owner: walletAddress,
+    chain,
+    nfts: nfts.filter(n => n.imageUrl || n.animationUrl),
+    totalCount: nfts.length,
+  };
+}
+
+// ── Tezos — TzKT API (free, no key) ─────────────────────
+
+async function fetchTezosNFTs(walletAddress: string): Promise<NFTCollection> {
+  let owner = walletAddress;
+
+  // Resolve .tez domain via TzKT
+  if (/\.tez$/i.test(walletAddress)) {
+    const name = walletAddress.replace(/\.tez$/i, '');
+    const domainRes = await fetch(`https://api.tzkt.io/v1/domains?name=${encodeURIComponent(name)}&limit=1`);
+    if (!domainRes.ok) throw new Error(`Could not resolve .tez domain: ${walletAddress}`);
+    const domains = await domainRes.json();
+    if (!domains?.[0]?.owner?.address) throw new Error(`No wallet found for ${walletAddress}`);
+    owner = domains[0].owner.address;
+  }
+
+  // Fetch FA2 token balances (NFTs)
+  const allItems: any[] = [];
+  let offset = 0;
+  const limit = 1000;
+
+  while (true) {
+    const res = await fetch(
+      `https://api.tzkt.io/v1/tokens/balances?account=${owner}&token.standard=fa2&balance.gt=0&limit=${limit}&offset=${offset}&select=token,balance`
+    );
+    if (!res.ok) throw new Error(`TzKT error: ${res.statusText}`);
+    const items = await res.json();
+    allItems.push(...items);
+    if (items.length < limit) break;
+    offset += limit;
+  }
+
+  const nfts: NFT[] = allItems
+    .filter((item: any) => {
+      const meta = item.token?.metadata;
+      if (!meta) return false;
+      // Only include items with visual content
+      const hasImage = meta.displayUri || meta.artifactUri || meta.thumbnailUri;
+      return hasImage;
+    })
+    .map((item: any) => {
+      const token = item.token;
+      const meta = token.metadata || {};
+
+      // Tezos NFTs store URIs in artifactUri, displayUri, thumbnailUri
+      const rawImageUrl = meta.displayUri || meta.artifactUri || meta.thumbnailUri || '';
+      const rawAnimUrl = meta.formats?.find((f: any) =>
+        f.mimeType?.startsWith('video/') || f.mimeType?.startsWith('audio/')
+      )?.uri || '';
+
+      const imageUrl = resolveUri(rawImageUrl);
+      const animationUrl = resolveUri(rawAnimUrl);
+      const mime = meta.formats?.[0]?.mimeType || '';
+
+      return {
+        tokenId: token.tokenId || 'unknown',
+        contractAddress: token.contract?.address || '',
+        collectionName: token.contract?.alias || meta.symbol || 'Unknown Collection',
+        name: meta.name || `#${token.tokenId}`,
+        description: meta.description || '',
+        imageUrl,
+        animationUrl: animationUrl || undefined,
+        mediaType: detectMediaType(animationUrl || imageUrl, mime),
+        metadata: meta,
+        chain: 'tezos' as Chain,
+      };
+    })
+    .filter((n: NFT) => n.imageUrl || n.animationUrl);
+
+  return {
+    owner,
+    chain: 'tezos',
+    nfts,
+    totalCount: nfts.length,
+  };
+}
+
+// ── Bitcoin Ordinals — Hiro API (free) ───────────────────
+
+async function fetchBitcoinOrdinals(walletAddress: string): Promise<NFTCollection> {
+  const allItems: any[] = [];
+  let offset = 0;
+  const limit = 60;
+
+  while (true) {
+    const res = await fetch(
+      `https://api.hiro.so/ordinals/v1/inscriptions?address=${walletAddress}&limit=${limit}&offset=${offset}`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!res.ok) throw new Error(`Hiro API error: ${res.statusText}`);
+    const data = await res.json();
+    const items = data.results || [];
+    allItems.push(...items);
+    if (items.length < limit || allItems.length >= data.total) break;
+    offset += limit;
+  }
+
+  const nfts: NFT[] = allItems
+    .filter((item: any) => {
+      // Only include image/video inscriptions
+      const mime = (item.content_type || item.mime_type || '').toLowerCase();
+      if (!mime) return false;
+      // Filter out spam
+      const name = (item.metadata?.name || '').toLowerCase();
+      if (/claim|airdrop|voucher|visit |\.com|\.io/.test(name)) return false;
+      return mime.startsWith('image/') || mime.startsWith('video/');
+    })
+    .map((item: any) => {
+      const mime = item.content_type || item.mime_type || '';
+      const contentUrl = `https://ordinals.com/content/${item.id}`;
+      const isVideo = mime.startsWith('video/');
+
+      return {
+        tokenId: item.id,
+        contractAddress: '',
+        collectionName: item.metadata?.collection || 'Ordinals',
+        name: item.metadata?.name || `Inscription #${item.number}`,
+        description: item.metadata?.description || '',
+        imageUrl: isVideo ? '' : contentUrl,
+        animationUrl: isVideo ? contentUrl : undefined,
+        mediaType: detectMediaType(contentUrl, mime),
+        metadata: item.metadata || {},
+        chain: 'bitcoin' as Chain,
+      };
+    })
+    .filter((n: NFT) => n.imageUrl || n.animationUrl);
+
+  return {
+    owner: walletAddress,
+    chain: 'bitcoin',
+    nfts,
+    totalCount: nfts.length,
+  };
+}
+
 // ── Public API ───────────────────────────────────────────────
 
 /**
@@ -426,16 +661,44 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
  */
 export async function fetchNFTsForWallet(walletAddress: string): Promise<NFTCollection> {
   const chain = detectChain(walletAddress.trim());
+  const addr = walletAddress.trim();
 
   if (chain === 'ethereum') {
-    return fetchEthereumNFTs(walletAddress.trim());
+    // Fetch from Ethereum mainnet + all L2s in parallel
+    const evmChains: ('base' | 'polygon' | 'arbitrum' | 'optimism')[] = ['base', 'polygon', 'arbitrum', 'optimism'];
+    const results = await Promise.allSettled([
+      fetchEthereumNFTs(addr),
+      ...evmChains.map(c => fetchEVML2NFTs(addr, c)),
+    ]);
+
+    const allNfts: NFT[] = [];
+    for (const r of results) {
+      if (r.status === 'fulfilled') {
+        allNfts.push(...r.value.nfts);
+      }
+    }
+
+    return {
+      owner: addr,
+      chain: 'ethereum',
+      nfts: allNfts,
+      totalCount: allNfts.length,
+    };
   }
 
   if (chain === 'solana') {
-    return fetchSolanaNFTs(walletAddress.trim());
+    return fetchSolanaNFTs(addr);
+  }
+
+  if (chain === 'tezos') {
+    return fetchTezosNFTs(addr);
+  }
+
+  if (chain === 'bitcoin') {
+    return fetchBitcoinOrdinals(addr);
   }
 
   throw new Error(
-    'Invalid address. Enter an Ethereum address (0x...), ENS name (.eth), Solana address, or .sol domain.'
+    'Invalid address. Supported: Ethereum (0x… / .eth), Solana (.sol), Tezos (tz… / .tez), Bitcoin (bc1… / 1… / 3…)'
   );
 }

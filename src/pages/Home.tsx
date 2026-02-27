@@ -131,7 +131,7 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
     for (const w of wallets) {
       const chain = detectChain(w);
       if (chain === 'unknown') {
-        setValidationError(`Invalid address: "${w.slice(0, 20)}…" — enter Ethereum (0x… / .eth) or Solana address / .sol`);
+        setValidationError(`Invalid address: "${w.slice(0, 20)}…" — enter Ethereum, Solana, Tezos, or Bitcoin address`);
         return false;
       }
     }
@@ -308,7 +308,7 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
           >
             <CyclingHeroText />
             <p className="text-muted-foreground font-light max-w-md mx-auto">
-              Enter any Ethereum or Solana wallet to curate your gallery.
+              Enter any wallet address to curate your gallery.
             </p>
           </div>
 
@@ -325,7 +325,7 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
             <div className="relative">
               <Input
                 type="text"
-                placeholder="0x… / vitalik.eth / Solana address / .sol (comma-separate for multi-wallet)"
+                placeholder="0x… / .eth / .sol / tz… / .tez / bc1… (comma-separate for multi-wallet)"
                 value={walletAddress}
                 onChange={(e) => {
                   setWalletAddress(e.target.value);
@@ -477,7 +477,7 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
             >
               Pro Features
             </button>
-            <p style={{ fontWeight: 200 }}>V.2 — Ethereum + Solana</p>
+            <p style={{ fontWeight: 200 }}>V.3 — Multi-Chain</p>
           </div>
         </div>
       </footer>
