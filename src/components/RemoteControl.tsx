@@ -299,7 +299,7 @@ export function RemoteQROverlay({
             Remote works between tabs in the same browser. For cross-device control, open the URL on both devices.
           </p>
 
-          <button onClick={onClose} className="w-full py-3 rounded-xl border border-black/10 text-sm text-black/70 hover:bg-black/5 transition-colors">
+          <button onClick={onClose} className="w-full py-3 rounded-xl bg-black text-white text-sm font-medium hover:bg-black/80 transition-colors">
             Close
           </button>
         </motion.div>
