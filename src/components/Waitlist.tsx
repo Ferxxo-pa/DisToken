@@ -2,37 +2,30 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Formspree endpoint — free, emails go to your inbox
+// Create one at formspree.io and replace this ID
+const FORMSPREE_ID = import.meta.env.VITE_FORMSPREE_ID || '';
 
 async function submitToWaitlist(email: string): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    // Fallback: just store locally if no Supabase configured
-    const existing = JSON.parse(localStorage.getItem('distoken:waitlist') ?? '[]');
-    existing.push({ email, ts: Date.now() });
-    localStorage.setItem('distoken:waitlist', JSON.stringify(existing));
-    return true;
+  // If Formspree is configured, submit there
+  if (FORMSPREE_ID) {
+    try {
+      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ email, source: 'distoken', _subject: 'New DisToken Pro waitlist signup' }),
+      });
+      return res.ok;
+    } catch {
+      return false;
+    }
   }
 
-  try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify({
-        email,
-        source: 'distoken',
-        created_at: new Date().toISOString(),
-      }),
-    });
-    return res.ok || res.status === 201 || res.status === 409; // 409 = already exists
-  } catch {
-    return false;
-  }
+  // Fallback: store locally (you can export later)
+  const existing = JSON.parse(localStorage.getItem('distoken:waitlist') ?? '[]');
+  existing.push({ email, ts: Date.now() });
+  localStorage.setItem('distoken:waitlist', JSON.stringify(existing));
+  return true;
 }
 
 export function Waitlist() {

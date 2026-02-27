@@ -4,8 +4,8 @@ import type { NFT } from "@/lib/nft";
 import { isLikelyPixelArt } from "@/lib/nft";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Copy, EyeOff, Filter, Info, LayoutGrid,
-  Maximize, Minimize, Moon, Music, Palette, Pause, Pin, Play, QrCode,
+  ChevronLeft, ChevronRight, Copy, Download, EyeOff, Filter, Info, LayoutGrid,
+  Maximize, Minimize, Moon, Music, Palette, Pause, Pin, Play,
   Settings, Shuffle, Sun, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -273,6 +273,7 @@ interface NFTSlideshowProps {
 }
 
 const SPEED_PRESETS = {
+  ambient: { label: "Ambient", value: 15000 },
   slow: { label: "Slow", value: 8000 },
   normal: { label: "Normal", value: 5000 },
   fast: { label: "Fast", value: 3000 },
@@ -362,11 +363,24 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   // Preload upcoming images
   useImagePreloader(nfts, currentIndex, 3);
 
+  // Track collection transitions for grouping indicator
+  const prevCollectionRef = useRef<string>('');
+  const [showCollectionBanner, setShowCollectionBanner] = useState(false);
+
   // Extract bg color
   useEffect(() => {
     if (currentNFT?.imageUrl) extractDominantColor(currentNFT.imageUrl).then(setBgColor);
     setExpandedDesc(false);
-  }, [currentNFT?.imageUrl]);
+
+    // Show collection banner when collection changes
+    if (currentNFT?.collectionName && currentNFT.collectionName !== prevCollectionRef.current) {
+      if (prevCollectionRef.current !== '') { // Don't show on first load
+        setShowCollectionBanner(true);
+        setTimeout(() => setShowCollectionBanner(false), 2500);
+      }
+      prevCollectionRef.current = currentNFT.collectionName;
+    }
+  }, [currentNFT?.imageUrl, currentNFT?.collectionName]);
 
   // Dark mode class on body
   useEffect(() => {
@@ -436,6 +450,30 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
       setTimeout(() => setCopied(false), 2000);
     });
   }, []);
+
+  // Download current NFT image at full resolution
+  const downloadCurrentNFT = useCallback(async () => {
+    if (!currentNFT?.imageUrl) return;
+    try {
+      const res = await fetch(currentNFT.imageUrl, { mode: 'cors' });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const ext = blob.type.includes('png') ? 'png' : blob.type.includes('gif') ? 'gif' : 'jpg';
+      a.download = `${(currentNFT.name || currentNFT.tokenId).replace(/[^a-zA-Z0-9]/g, '_')}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // CORS blocked — fallback to opening in new tab
+      window.open(currentNFT.imageUrl, '_blank');
+    }
+  }, [currentNFT]);
+
+  // Ambient mode = slow speed + no metadata + fullscreen
+  const isAmbient = speed === 'ambient';
 
   const handleVideoEnd = useCallback(() => {
     if (isPlaying && nfts.length > 1) goToNext();
@@ -649,6 +687,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           className={`${btn} h-9 w-9 rounded-full ${copied ? 'ring-1 ring-green-400' : ''}`} title="Copy share link">
           <Copy className={`h-4 w-4 ${copied ? 'text-green-400' : ''}`} />
         </Button>
+        <Button variant="outline" size="icon" onClick={downloadCurrentNFT}
+          className={`${btn} h-9 w-9 rounded-full`} title="Download current NFT">
+          <Download className="h-4 w-4" />
+        </Button>
         <Button variant="outline" size="icon" onClick={toggleFullscreen} className={`${btn} h-9 w-9 rounded-full`}>
           {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
         </Button>
@@ -793,7 +835,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             if (fullscreenTimeoutRef.current) clearTimeout(fullscreenTimeoutRef.current);
             fullscreenTimeoutRef.current = setTimeout(() => {
               if (!isSettingsOpen && !isFilterOpen) setShowFullscreenControls(false);
-            }, kioskMode ? 2000 : 2500);
+            }, isAmbient ? 1500 : kioskMode ? 2000 : 2500);
           }}>
           <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
           <AnimatePresence mode="wait">
@@ -843,6 +885,24 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
               </div>
             </motion.div>
           </div>
+
+          {/* Collection transition banner */}
+          <AnimatePresence>
+            {showCollectionBanner && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="absolute top-20 left-0 right-0 z-30 flex justify-center pointer-events-none"
+              >
+                <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-2 border border-white/10">
+                  <p className="text-sm font-medium text-white/90 tracking-wide">
+                    {currentNFT.collectionName || 'Unknown Collection'}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Persistent subtle metadata in kiosk when controls hidden */}
           {kioskMode && showMetadata && !showFullscreenControls && (
@@ -930,6 +990,24 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
               </motion.div>
             </AnimatePresence>
             {renderArrows(false)}
+
+            {/* Collection transition banner (normal mode) */}
+            <AnimatePresence>
+              {showCollectionBanner && (
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="absolute top-6 left-0 right-0 z-30 flex justify-center pointer-events-none"
+                >
+                  <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-2 border border-white/10">
+                    <p className="text-sm font-medium text-white/90 tracking-wide">
+                      {currentNFT.collectionName || 'Unknown Collection'}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
