@@ -1199,9 +1199,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
                 <h1 className="text-sm md:text-base font-light tracking-tight truncate">
                   <span className="font-medium">{formatAddress(walletAddress)}</span>
-                  <span className="text-muted-foreground ml-2 text-xs hidden md:inline">
-                    {collectionStats.total} NFTs · {collectionStats.collections} collection{collectionStats.collections !== 1 ? 's' : ''}
-                  </span>
+
                 </h1>
                 {chain && (
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full border shrink-0"
