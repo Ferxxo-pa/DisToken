@@ -518,16 +518,19 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     if (currentNFT?.imageUrl) extractDominantColor(currentNFT.imageUrl).then(setBgColor);
     setExpandedDesc(false);
 
-    // Show banner when collection changes OR when showNameOnSwitch is on
+    // Show banner on collection change or (if enabled) on every switch
     if (currentNFT) {
       const collectionChanged = currentNFT.collectionName && currentNFT.collectionName !== prevCollectionRef.current && prevCollectionRef.current !== '';
-      if (collectionChanged || showNameOnSwitch) {
+      if (showNameOnSwitch) {
+        setShowCollectionBanner(true);
+        setTimeout(() => setShowCollectionBanner(false), 2500);
+      } else if (collectionChanged) {
         setShowCollectionBanner(true);
         setTimeout(() => setShowCollectionBanner(false), 2500);
       }
       prevCollectionRef.current = currentNFT.collectionName;
     }
-  }, [currentNFT?.imageUrl, currentNFT?.collectionName]);
+  }, [currentNFT?.imageUrl, currentNFT?.collectionName, showNameOnSwitch]);
 
   // Dark mode class on body
   useEffect(() => {
