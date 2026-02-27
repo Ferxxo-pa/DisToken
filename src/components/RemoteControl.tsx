@@ -5,6 +5,7 @@ import {
   Maximize, Moon, Pause, Play, Shuffle, Smartphone, Wifi, WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 
 /** Collapsible section for remote settings */
 function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -277,15 +278,25 @@ export function RemoteQROverlay({
             </p>
           </div>
 
-          <div className="bg-black/5 rounded-xl p-4 space-y-3">
-            <p className="text-xs text-black/40 uppercase tracking-wider">Room Code</p>
-            <p className="text-4xl font-mono font-bold tracking-[0.3em] text-black">
-              {roomCode}
-            </p>
+          <div className="bg-black/5 rounded-xl p-6 flex flex-col items-center space-y-4">
+            <QRCodeSVG
+              value={remoteUrl}
+              size={200}
+              bgColor="transparent"
+              fgColor="#000000"
+              level="M"
+              includeMargin={false}
+            />
+            <div className="space-y-1">
+              <p className="text-xs text-black/40 uppercase tracking-wider">Room Code</p>
+              <p className="text-3xl font-mono font-bold tracking-[0.3em] text-black">
+                {roomCode}
+              </p>
+            </div>
           </div>
 
           <div className="bg-black/5 rounded-xl p-3">
-            <p className="text-xs text-black/40 mb-1">Open in another tab:</p>
+            <p className="text-xs text-black/40 mb-1">Or open manually:</p>
             <p className="text-sm font-mono text-black/70 break-all">{remoteUrl}</p>
           </div>
 
