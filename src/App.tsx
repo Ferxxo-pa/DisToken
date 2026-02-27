@@ -2,6 +2,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, useSearch } from "wouter";
+import { useEffect } from "react";
+import { initAnalytics } from "@/lib/analytics";
 
 import Home from "./pages/Home";
 import Setup from "./pages/Setup";
@@ -11,7 +13,8 @@ function WalletRoute({ params }: { params: { wallet: string } }) {
   const search = useSearch();
   const searchParams = new URLSearchParams(search);
   const kiosk = searchParams.get('mode') === 'kiosk';
-  return <Home initialWallet={decodeURIComponent(params.wallet)} kioskMode={kiosk} />;
+  const embed = searchParams.get('embed') === 'true';
+  return <Home initialWallet={decodeURIComponent(params.wallet)} kioskMode={kiosk} embedMode={embed} />;
 }
 
 function HomeRoute() {
@@ -40,6 +43,10 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    initAnalytics();
+  }, []);
+
   return (
     <TooltipProvider>
       <Toaster />

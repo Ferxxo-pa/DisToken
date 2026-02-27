@@ -2,6 +2,13 @@ import { Button } from "@/components/ui/button";
 import { AddToPlaylistButton, PlaylistManager } from "@/components/PlaylistManager";
 import { RemoteQROverlay } from "@/components/RemoteControl";
 import { Walkthrough } from "@/components/Walkthrough";
+import { GalleryWall } from "@/components/GalleryWall";
+import type { GridSize } from "@/components/GalleryWall";
+import { ZoomLightbox } from "@/components/ZoomLightbox";
+import { EmbedModal } from "@/components/EmbedModal";
+import { AmbiencePlayer, AMBIENCE_OPTIONS } from "@/components/AmbiencePlayer";
+import type { AmbienceMode } from "@/components/AmbiencePlayer";
+import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 
 import type { NFT } from "@/lib/nft";
 import { isLikelyPixelArt } from "@/lib/nft";
@@ -9,11 +16,16 @@ import type { Playlist } from "@/lib/playlists";
 import { loadPlaylists } from "@/lib/playlists";
 import { RemoteHost, generateRoomCode, type RemoteCommand } from "@/lib/remote";
 import { getActiveSlot, loadSchedule, type ScheduleSlot } from "@/lib/schedule";
+import { useIsTouchDevice } from "@/lib/useTouchGestures";
+import { getAutoGroups, filterByAutoGroup } from "@/lib/autoCollections";
+import type { AutoGroupKey } from "@/lib/autoCollections";
+import { recordDwell } from "@/lib/analytics";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Copy, Download, EyeOff, Filter, HelpCircle, Info, LayoutGrid, List,
+  BarChart2, ChevronLeft, ChevronRight, Code2, Copy, DollarSign, Download, EyeOff,
+  Filter, HelpCircle, Info, LayoutGrid, List,
   Maximize, Minimize, Moon, Music, Pause, Pin, Play,
-  Settings, Shuffle, Smartphone, Sun, Undo2, Volume2, VolumeX
+  Settings, Shuffle, Smartphone, Sun, Tv2, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -316,12 +328,25 @@ function BlurredBackground({ src, fallbackColor, mode, customColor }: {
 
 // ── Main component ──────────────────────────────────────────
 
+// ── Frame style ─────────────────────────────────────────────
+
+type FrameStyle = 'none' | 'minimal' | 'gallery' | 'modern' | 'ornate';
+
+const FRAME_STYLES: Record<FrameStyle, { label: string; className: string }> = {
+  none:    { label: 'None',          className: '' },
+  minimal: { label: 'Minimal',       className: 'ring-1 ring-black/40 ring-offset-2 ring-offset-transparent' },
+  gallery: { label: 'Gallery Mat',   className: 'ring-[10px] ring-white shadow-2xl' },
+  modern:  { label: 'Modern Float',  className: 'shadow-[0_20px_60px_rgba(0,0,0,0.7)] ring-1 ring-white/5' },
+  ornate:  { label: 'Ornate Gold',   className: 'ring-4 ring-yellow-600/80 shadow-[0_0_30px_rgba(180,130,0,0.4),inset_0_0_0_1px_rgba(255,215,0,0.2)]' },
+};
+
 interface NFTSlideshowProps {
   nfts: NFT[];
   walletAddress: string;
   chain?: 'ethereum' | 'solana';
   onChangeWallet?: () => void;
   kioskMode?: boolean;
+  embedMode?: boolean;
 }
 
 const SPEED_PRESETS = {
@@ -332,7 +357,7 @@ const SPEED_PRESETS = {
   veryFast: { label: "Very Fast", value: 1500 },
 };
 
-export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWallet, kioskMode = false }: NFTSlideshowProps) {
+export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWallet, kioskMode = false, embedMode = false }: NFTSlideshowProps) {
   // ── Curation state ───────────────────────────────────────
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => loadSet(curKey(walletAddress, 'hidden')));
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => loadSet(curKey(walletAddress, 'pinned')));
@@ -342,14 +367,14 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   // ── Display state ────────────────────────────────────────
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(kioskMode);
+  const [isFullscreen, setIsFullscreen] = useState(kioskMode || embedMode);
   const [speed, setSpeed] = useState<keyof typeof SPEED_PRESETS>("normal");
   const [transition, setTransition] = useState<TransitionType>('fade');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [showGalleryHeader, setShowGalleryHeader] = useState(true);
-  const [showFullscreenControls, setShowFullscreenControls] = useState(!kioskMode);
-  const [showMetadata, setShowMetadata] = useState(!kioskMode);
+  const [showFullscreenControls, setShowFullscreenControls] = useState(!kioskMode && !embedMode);
+  const [showMetadata, setShowMetadata] = useState(!kioskMode && !embedMode);
   const [hoveredNFT, setHoveredNFT] = useState<string | null>(null);
   const [bgColor, setBgColor] = useState('rgba(0,0,0,0.9)');
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -363,6 +388,34 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Gallery Wall state ───────────────────────────────────
+  const [isWallMode, setIsWallMode] = useState(false);
+  const [wallGridSize, setWallGridSize] = useState<GridSize>(3);
+
+  // ── Zoom lightbox state ──────────────────────────────────
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+
+  // ── Embed modal state ────────────────────────────────────
+  const [isEmbedOpen, setIsEmbedOpen] = useState(false);
+
+  // ── Frame style ──────────────────────────────────────────
+  const [frameStyle, setFrameStyle] = useState<FrameStyle>('none');
+
+  // ── Price overlay ────────────────────────────────────────
+  const [showPriceOverlay, setShowPriceOverlay] = useState(false);
+
+  // ── Ambience ─────────────────────────────────────────────
+  const [ambienceMode, setAmbienceMode] = useState<AmbienceMode>('silence');
+
+  // ── Auto-collections filter ──────────────────────────────
+  const [activeAutoGroup, setActiveAutoGroup] = useState<AutoGroupKey | null>(null);
+
+  // ── Analytics panel ──────────────────────────────────────
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+
+  // ── Touch device detection ───────────────────────────────
+  const isTouchDevice = useIsTouchDevice();
 
   // ── Playlist state ───────────────────────────────────────
   const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
@@ -426,12 +479,16 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         }
       }
     }
+    // Auto-group filter
+    if (activeAutoGroup) {
+      filtered = filterByAutoGroup(filtered, activeAutoGroup);
+    }
     const ordered = [
       ...filtered.filter(n => pinnedIds.has(n.tokenId)),
       ...filtered.filter(n => !pinnedIds.has(n.tokenId)),
     ];
     return isShuffle ? shuffleArray(ordered) : ordered;
-  }, [rawNfts, hiddenIds, pinnedIds, selectedCollection, isShuffle, shuffleSeed, activePlaylist, activeScheduleSlot, walletAddress]);
+  }, [rawNfts, hiddenIds, pinnedIds, selectedCollection, isShuffle, shuffleSeed, activePlaylist, activeScheduleSlot, walletAddress, activeAutoGroup]);
 
   const collectionStats = useMemo(() => {
     const colSet = new Set(nfts.map(n => n.collectionName));
@@ -545,6 +602,32 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     const seen = localStorage.getItem('distoken:walkthrough-seen') === 'true';
     if (!seen) setShowWalkthrough(true);
   }, []);
+
+  // ── Smart auto-collections ────────────────────────────────
+  const autoGroups = useMemo(() => getAutoGroups(rawNfts, chain), [rawNfts, chain]);
+
+  // ── Dwell time analytics tracking ─────────────────────────
+  const dwellStartRef = useRef<number>(Date.now());
+  const dwellNFTRef = useRef<{ tokenId: string; name: string; imageUrl: string } | null>(null);
+
+  useEffect(() => {
+    const flush = () => {
+      if (dwellNFTRef.current && dwellStartRef.current) {
+        const ms = Date.now() - dwellStartRef.current;
+        recordDwell(dwellNFTRef.current.tokenId, dwellNFTRef.current.name, dwellNFTRef.current.imageUrl, ms);
+      }
+    };
+    flush();
+    dwellStartRef.current = Date.now();
+    dwellNFTRef.current = currentNFT
+      ? { tokenId: currentNFT.tokenId, name: currentNFT.name || '', imageUrl: currentNFT.imageUrl }
+      : null;
+    return flush;
+  }, [currentIndex, currentNFT?.tokenId]);
+
+  // ── Touch swipe refs (for inline handlers) ───────────────
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
 
   const formatAddress = (address: string) => {
     if (address.includes('.eth') || address.includes('.sol')) return address;
@@ -704,8 +787,58 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
 
   // ── Shared UI pieces ─────────────────────────────────────
 
+  // ── Price overlay helper ─────────────────────────────────
+  const getPriceData = (nft: NFT): { price: string; symbol: string } | null => {
+    if (!showPriceOverlay || !nft.metadata) return null;
+    const meta = nft.metadata;
+    // Various places Alchemy/Helius might put floor price
+    const raw = meta.floor_price || meta.floorPrice || meta.floor || meta.opensea?.floor_price;
+    if (!raw && raw !== 0) return null;
+    const isEth = nft.contractAddress?.startsWith('0x');
+    return { price: parseFloat(raw).toFixed(3), symbol: isEth ? 'ETH' : 'SOL' };
+  };
+
+  // ── Framed media render helper ────────────────────────────
+  const renderFramedMedia = (
+    nft: NFT,
+    maxStyle: React.CSSProperties,
+    className: string,
+    onVideoEnd?: () => void,
+    onClickZoom?: () => void
+  ) => {
+    const priceData = getPriceData(nft);
+    const frameCls = FRAME_STYLES[frameStyle].className;
+    return (
+      <div
+        className={`relative ${frameCls}`}
+        style={{ display: 'inline-flex', cursor: onClickZoom ? 'zoom-in' : 'default' }}
+        onClick={onClickZoom}
+      >
+        <NFTMedia
+          nft={nft}
+          maxStyle={maxStyle}
+          className={className}
+          onVideoEnd={onVideoEnd}
+          isPixelArt={isCurrentPixelArt}
+          isMuted={isMuted}
+          onToggleMute={toggleMute}
+        />
+        {priceData && (
+          <div className="absolute bottom-2 left-2 z-10 px-2 py-1 rounded-md bg-black/70 backdrop-blur-sm border border-white/20 text-white text-xs font-medium">
+            Floor: {priceData.price} {priceData.symbol}
+          </div>
+        )}
+        {isTouchDevice && (
+          <div className="absolute top-2 right-2 z-10 text-white/40 text-xs bg-black/40 rounded-full px-2 py-0.5 pointer-events-none">
+            ← swipe →
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderSettingsDropdown = () => (
-    <div className="absolute bottom-full right-0 mb-2 w-72 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-[70vh] overflow-auto" data-settings-dropdown>
+    <div className="absolute bottom-full right-0 mb-2 w-72 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-[80vh] overflow-auto" data-settings-dropdown>
       <div className="space-y-1">
         <p className="text-xs font-semibold text-black/60 px-2 py-1">Speed</p>
         {Object.entries(SPEED_PRESETS).map(([key, { label }]) => (
@@ -746,6 +879,56 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           )}
         </div>
 
+        {/* Frame / Mat Effects */}
+        <div className="border-t border-black/10 mt-1 pt-1">
+          <p className="text-xs font-semibold text-black/60 px-2 py-1">Frame Style</p>
+          {(Object.entries(FRAME_STYLES) as [FrameStyle, { label: string }][]).map(([key, { label }]) => (
+            <button key={key} onClick={() => { setFrameStyle(key); setIsSettingsOpen(false); }}
+              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${frameStyle === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Background Ambience */}
+        <div className="border-t border-black/10 mt-1 pt-1">
+          <p className="text-xs font-semibold text-black/60 px-2 py-1">Ambience</p>
+          {AMBIENCE_OPTIONS.map(({ key, label, icon }) => (
+            <button key={key} onClick={() => { setAmbienceMode(key); setIsSettingsOpen(false); }}
+              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${ambienceMode === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+              {icon} {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Price overlay toggle */}
+        <div className="border-t border-black/10 mt-1 pt-1">
+          <button onClick={() => { setShowPriceOverlay(p => !p); setIsSettingsOpen(false); }}
+            className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors flex items-center gap-2 ${showPriceOverlay ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+            <DollarSign className="h-3.5 w-3.5" />
+            {showPriceOverlay ? 'Hide floor price' : 'Show floor price'}
+          </button>
+        </div>
+
+        {/* Gallery Wall mode */}
+        <div className="border-t border-black/10 mt-1 pt-1">
+          <p className="text-xs font-semibold text-black/60 px-2 py-1">Gallery Wall Grid</p>
+          {([2, 3, 4] as GridSize[]).map(size => (
+            <button key={size} onClick={() => { setWallGridSize(size); setIsSettingsOpen(false); }}
+              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${wallGridSize === size ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+              {size}×{size} Grid
+            </button>
+          ))}
+        </div>
+
+        {/* Analytics */}
+        <div className="border-t border-black/10 mt-1 pt-1">
+          <button onClick={() => { setIsAnalyticsOpen(true); setIsSettingsOpen(false); }}
+            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 flex items-center gap-2">
+            <BarChart2 className="h-3.5 w-3.5" /> View Analytics
+          </button>
+        </div>
+
         {hiddenIds.size > 0 && (
           <div className="border-t border-black/10 mt-1 pt-1">
             <button onClick={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); setIsSettingsOpen(false); }}
@@ -759,22 +942,38 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   );
 
   const renderFilterDropdown = () => (
-    <div className="absolute bottom-full right-0 mb-2 w-64 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-80 overflow-auto" data-filter-dropdown>
+    <div className="absolute bottom-full right-0 mb-2 w-64 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-96 overflow-auto" data-filter-dropdown>
       <div className="space-y-1">
         <p className="text-xs font-semibold text-black/60 px-2 py-1">Filter by Collection</p>
-        <button onClick={() => { setSelectedCollection(null); setIsFilterOpen(false); }}
-          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${!selectedCollection ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+        <button onClick={() => { setSelectedCollection(null); setActiveAutoGroup(null); setIsFilterOpen(false); }}
+          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${!selectedCollection && !activeAutoGroup ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
           All ({rawNfts.filter(n => !hiddenIds.has(n.tokenId)).length})
         </button>
         {collections.map(name => {
           const count = rawNfts.filter(n => n.collectionName === name && !hiddenIds.has(n.tokenId)).length;
           return (
-            <button key={name} onClick={() => { setSelectedCollection(name); setIsFilterOpen(false); setCurrentIndex(0); }}
+            <button key={name} onClick={() => { setSelectedCollection(name); setActiveAutoGroup(null); setIsFilterOpen(false); setCurrentIndex(0); }}
               className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors truncate ${selectedCollection === name ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
               {name} ({count})
             </button>
           );
         })}
+
+        {/* Smart Auto-Collections */}
+        {autoGroups.length > 0 && (
+          <>
+            <div className="border-t border-black/10 mt-1 pt-1">
+              <p className="text-xs font-semibold text-black/60 px-2 py-1">Smart Groups</p>
+            </div>
+            {autoGroups.map(group => (
+              <button key={group.key}
+                onClick={() => { setActiveAutoGroup(group.key); setSelectedCollection(null); setIsFilterOpen(false); setCurrentIndex(0); }}
+                className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors truncate ${activeAutoGroup === group.key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+                {group.icon} {group.label} ({group.count})
+              </button>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
@@ -813,15 +1012,20 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           className={`${btn} h-9 w-9 rounded-full`} title="Mute (M)">
           {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
         </Button>
-        {collections.length > 1 && (
+        {(collections.length > 1 || autoGroups.length > 0) && (
           <div className="relative">
             <Button variant="outline" size="icon" onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`${btn} h-9 w-9 rounded-full ${selectedCollection ? 'ring-1 ring-white/40' : ''}`} data-filter-button>
+              className={`${btn} h-9 w-9 rounded-full ${(selectedCollection || activeAutoGroup) ? 'ring-1 ring-white/40' : ''}`} data-filter-button>
               <Filter className="h-4 w-4" />
             </Button>
             {isFilterOpen && renderFilterDropdown()}
           </div>
         )}
+        {/* Wall mode toggle */}
+        <Button variant="outline" size="icon" onClick={() => setIsWallMode(p => !p)}
+          className={`${btn} h-9 w-9 rounded-full ${isWallMode ? 'ring-1 ring-white/40' : ''}`} title="Gallery Wall Mode">
+          <Tv2 className="h-4 w-4" />
+        </Button>
         <Button variant="outline" size="icon" onClick={() => { setIsGalleryOpen(!isGalleryOpen); setShowGalleryHeader(true); }}
           className={`${btn} h-9 w-9 rounded-full`}>
           <LayoutGrid className="h-4 w-4" />
@@ -848,6 +1052,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         <Button variant="outline" size="icon" onClick={copyShareUrl}
           className={`${btn} h-9 w-9 rounded-full ${copied ? 'ring-1 ring-green-400' : ''}`} title="Copy share link">
           <Copy className={`h-4 w-4 ${copied ? 'text-green-400' : ''}`} />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsEmbedOpen(true)}
+          className={`${btn} h-9 w-9 rounded-full`} title="Embed widget">
+          <Code2 className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="icon" onClick={downloadCurrentNFT}
           className={`${btn} h-9 w-9 rounded-full`} title="Download current NFT">
@@ -1009,15 +1217,43 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             fullscreenTimeoutRef.current = setTimeout(() => {
               if (!isSettingsOpen && !isFilterOpen) setShowFullscreenControls(false);
             }, isAmbient ? 1500 : kioskMode ? 2000 : 2500);
-          }}>
+          }}
+          onTouchStart={e => {
+            if (e.touches.length === 1) {
+              touchStartXRef.current = e.touches[0].clientX;
+              touchStartYRef.current = e.touches[0].clientY;
+            }
+          }}
+          onTouchEnd={e => {
+            if (e.changedTouches.length === 1 && !isZoomOpen) {
+              const dx = e.changedTouches[0].clientX - touchStartXRef.current;
+              const dy = e.changedTouches[0].clientY - touchStartYRef.current;
+              if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+                dx < 0 ? goToNext() : goToPrevious();
+              }
+            }
+          }}
+        >
           <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
-          <AnimatePresence mode="wait">
-            <motion.div key={currentIndex} {...txn}
-              className="relative z-10 w-full h-full flex items-center justify-center p-6 md:p-8">
-              <NFTMedia nft={currentNFT} maxStyle={maxStyleFS} className="rounded-lg shadow-2xl"
-                onVideoEnd={handleVideoEnd} isPixelArt={isCurrentPixelArt} isMuted={isMuted} onToggleMute={toggleMute} />
-            </motion.div>
-          </AnimatePresence>
+
+          {/* Gallery Wall Mode */}
+          {isWallMode ? (
+            <div className="relative z-10 w-full h-full p-4 md:p-6">
+              <GalleryWall
+                nfts={nfts}
+                gridSize={wallGridSize}
+                intervalMs={currentSpeed * 0.8}
+                frameStyle={frameStyle}
+              />
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div key={currentIndex} {...txn}
+                className="relative z-10 w-full h-full flex items-center justify-center p-6 md:p-8">
+                {renderFramedMedia(currentNFT, maxStyleFS, "rounded-lg shadow-2xl", handleVideoEnd, () => setIsZoomOpen(true))}
+              </motion.div>
+            </AnimatePresence>
+          )}
 
           {/* Controls overlay */}
           <div className="absolute inset-0 z-20">
@@ -1049,10 +1285,12 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                       <span className="text-xs px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-200 bg-amber-500/20">🕐 {activeScheduleSlot.label}</span>
                     )}
                   </div>
-                  <Button onClick={() => setIsFullscreen(false)} variant="outline" size="sm"
-                    className="border-white/30 bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm font-light">
-                    <Minimize className="h-4 w-4 mr-2" />{kioskMode ? 'Exit Kiosk' : 'Exit'}
-                  </Button>
+                  {!embedMode && (
+                    <Button onClick={() => setIsFullscreen(false)} variant="outline" size="sm"
+                      className="border-white/30 bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm font-light">
+                      <Minimize className="h-4 w-4 mr-2" />{kioskMode ? 'Exit Kiosk' : 'Exit'}
+                    </Button>
+                  )}
                 </div>
               </div>
               {renderArrows(true)}
@@ -1114,6 +1352,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             onComplete={() => { setShowWalkthrough(false); setWalkthroughForce(false); }}
           />
         )}
+        <ZoomLightbox nft={currentNFT} isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} />
+        <EmbedModal walletAddress={walletAddress} isOpen={isEmbedOpen} onClose={() => setIsEmbedOpen(false)} />
+        <AnalyticsPanel isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
+        <AmbiencePlayer mode={ambienceMode} isMuted={isMuted} />
       </>
     );
   }
@@ -1171,35 +1413,59 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         </header>
 
         {/* Main display area */}
-        <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden">
+        <div
+          className="relative flex-1 w-full flex items-center justify-center overflow-hidden"
+          onTouchStart={e => {
+            if (e.touches.length === 1) {
+              touchStartXRef.current = e.touches[0].clientX;
+              touchStartYRef.current = e.touches[0].clientY;
+            }
+          }}
+          onTouchEnd={e => {
+            if (e.changedTouches.length === 1 && !isZoomOpen) {
+              const dx = e.changedTouches[0].clientX - touchStartXRef.current;
+              const dy = e.changedTouches[0].clientY - touchStartYRef.current;
+              if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) {
+                dx < 0 ? goToNext() : goToPrevious();
+              }
+            }
+          }}
+        >
           <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
           <div className="relative z-10 w-full h-full flex items-center justify-center px-4 md:px-8 py-6 md:py-8">
-            <AnimatePresence mode="wait">
-              <motion.div key={currentIndex} {...txn}
-                className="w-full h-full flex items-center justify-center">
-                <div className="relative max-w-full max-h-full group/nft"
-                  onMouseEnter={() => setHoveredNFT(currentNFT.tokenId)}
-                  onMouseLeave={() => setHoveredNFT(null)}
-                  style={{ overflow: 'hidden', borderRadius: 8 }}>
-                  <NFTMedia nft={currentNFT} maxStyle={maxStyleNormal} className="shadow-refined rounded-lg"
-                    onVideoEnd={handleVideoEnd} isPixelArt={isCurrentPixelArt} isMuted={isMuted} onToggleMute={toggleMute} />
-                  <div className="absolute inset-0 rounded-lg border border-white/10 pointer-events-none" />
-                  {hoveredNFT === currentNFT.tokenId && (
-                    <div className="absolute top-2 right-2 flex gap-1.5 z-10">
-                      <button onClick={() => togglePin(currentNFT.tokenId)}
-                        className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/80">
-                        <Pin className={`h-3.5 w-3.5 ${pinnedIds.has(currentNFT.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
-                      </button>
-                      <button onClick={() => toggleHide(currentNFT.tokenId)}
-                        className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-red-600/80">
-                        <EyeOff className="h-3.5 w-3.5 text-white" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </AnimatePresence>
-            {renderArrows(false)}
+            {/* Gallery Wall Mode */}
+            {isWallMode ? (
+              <GalleryWall
+                nfts={nfts}
+                gridSize={wallGridSize}
+                intervalMs={currentSpeed * 0.8}
+                frameStyle={frameStyle}
+              />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div key={currentIndex} {...txn}
+                  className="w-full h-full flex items-center justify-center">
+                  <div className="relative max-w-full max-h-full group/nft"
+                    onMouseEnter={() => setHoveredNFT(currentNFT.tokenId)}
+                    onMouseLeave={() => setHoveredNFT(null)}>
+                    {renderFramedMedia(currentNFT, maxStyleNormal, "shadow-refined rounded-lg", handleVideoEnd, () => setIsZoomOpen(true))}
+                    {hoveredNFT === currentNFT.tokenId && (
+                      <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+                        <button onClick={() => togglePin(currentNFT.tokenId)}
+                          className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/80">
+                          <Pin className={`h-3.5 w-3.5 ${pinnedIds.has(currentNFT.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
+                        </button>
+                        <button onClick={() => toggleHide(currentNFT.tokenId)}
+                          className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-red-600/80">
+                          <EyeOff className="h-3.5 w-3.5 text-white" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            )}
+            {!isWallMode && renderArrows(false)}
 
             {/* Collection transition banner (normal mode) */}
             <AnimatePresence>
@@ -1252,6 +1518,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           onComplete={() => { setShowWalkthrough(false); setWalkthroughForce(false); }}
         />
       )}
+      <ZoomLightbox nft={currentNFT} isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} />
+      <EmbedModal walletAddress={walletAddress} isOpen={isEmbedOpen} onClose={() => setIsEmbedOpen(false)} />
+      <AnalyticsPanel isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
+      <AmbiencePlayer mode={ambienceMode} isMuted={isMuted} />
     </>
   );
 }

@@ -76,9 +76,10 @@ function CyclingHeroText() {
 interface HomeProps {
   initialWallet?: string;
   kioskMode?: boolean;
+  embedMode?: boolean;
 }
 
-export default function Home({ initialWallet, kioskMode = false }: HomeProps = {}) {
+export default function Home({ initialWallet, kioskMode = false, embedMode = false }: HomeProps = {}) {
   const [walletAddress, setWalletAddress] = useState(initialWallet ?? "");
   const [activeWallet, setActiveWallet] = useState<string | null>(initialWallet ?? null);
   const [validationError, setValidationError] = useState("");
@@ -239,8 +240,9 @@ export default function Home({ initialWallet, kioskMode = false }: HomeProps = {
           nfts={nftData?.nfts || []}
           walletAddress={activeWallet}
           chain={nftData?.chain}
-          onChangeWallet={handleChangeWallet}
+          onChangeWallet={embedMode ? undefined : handleChangeWallet}
           kioskMode={kioskMode}
+          embedMode={embedMode}
         />
       </div>
     );
