@@ -411,10 +411,12 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
                 {[
                   '📦 Offline event packs',
                   '📅 Playlist scheduling',
-                  '🖥️ Multi-screen sync',
-                  '📊 Visitor analytics',
-                  '🎨 Custom branding',
-                  '🔗 API access',
+                  '🖥️ Gallery wall mode',
+                  '💰 Floor price overlay',
+                  '🎵 Ambient soundscapes',
+                  '👋 Gesture control',
+                  '🖼️ Custom branding',
+                  '⏱️ Extended display time',
                 ].map(feature => (
                   <div key={feature} className="flex items-center gap-1.5 text-muted-foreground px-2 py-1.5 rounded-lg bg-accent/30">
                     {feature}

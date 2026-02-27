@@ -1,6 +1,5 @@
 import type { Playlist } from "@/lib/playlists";
-import type { AmbienceMode } from "@/components/AmbiencePlayer";
-import { AMBIENCE_OPTIONS } from "@/components/AmbiencePlayer";
+// Ambience — moved to Pro roadmap
 import type { AutoGroupKey } from "@/lib/autoCollections";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -64,8 +63,8 @@ interface SettingsDrawerProps {
   onShuffleToggle: () => void;
   showMetadata: boolean;
   onMetadataToggle: () => void;
-  showPriceOverlay: boolean;
-  onPriceOverlayToggle: () => void;
+  showNameOnSwitch: boolean;
+  onShowNameOnSwitchToggle: () => void;
   // Collections & filters
   collections: string[];
   selectedCollection: string | null;
@@ -73,11 +72,6 @@ interface SettingsDrawerProps {
   autoGroups: { key: AutoGroupKey; label: string; count: number }[];
   activeAutoGroup: AutoGroupKey | null;
   onAutoGroupChange: (g: AutoGroupKey | null) => void;
-  // Gallery wall
-  isGalleryWallMode: boolean;
-  onGalleryWallToggle: () => void;
-  galleryWallSize: GridSize;
-  onGalleryWallSizeChange: (s: GridSize) => void;
   // Playlist
   activePlaylist: Playlist | null;
   onPlaylistOpen: () => void;
@@ -85,9 +79,6 @@ interface SettingsDrawerProps {
   onRemoteOpen: () => void;
   // Embed
   onEmbedOpen: () => void;
-  // Ambience
-  ambienceMode: AmbienceMode;
-  onAmbienceModeChange: (m: AmbienceMode) => void;
   // Analytics
   onAnalyticsOpen: () => void;
   // Walkthrough
@@ -274,22 +265,8 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                 {/* Show info */}
                 <ToggleRow icon={<Volume2 className="h-3.5 w-3.5" />} label="Show artwork info" shortcut="I" active={props.showMetadata} onClick={props.onMetadataToggle} />
 
-                {/* Price overlay */}
-                <ToggleRow icon={<BarChart3 className="h-3.5 w-3.5" />} label="Show floor price" active={props.showPriceOverlay} onClick={props.onPriceOverlayToggle} />
-
-                {/* Gallery Wall */}
-                <div className="pt-2 border-t border-black/5 dark:border-white/5 mt-2">
-                  <ToggleRow icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Gallery Wall" active={props.isGalleryWallMode} onClick={props.onGalleryWallToggle} />
-                  {props.isGalleryWallMode && (
-                    <div className="grid grid-cols-3 gap-1.5 mt-2 ml-6">
-                      {([2, 3, 4] as GridSize[]).map(s => (
-                        <OptionButton key={s} active={props.galleryWallSize === s} onClick={() => props.onGalleryWallSizeChange(s)}>
-                          {s}×{s}
-                        </OptionButton>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Show name on switch */}
+                <ToggleRow icon={<LayoutGrid className="h-3.5 w-3.5" />} label="Show name on switch" active={props.showNameOnSwitch} onClick={props.onShowNameOnSwitchToggle} />
 
                 {/* Collection filter */}
                 {props.collections.length > 1 && (
@@ -361,15 +338,16 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                 {/* Share link */}
                 <ActionRow icon={<Copy className="h-3.5 w-3.5" />} label={props.copied ? '✓ Copied!' : 'Copy Share Link'} onClick={props.onCopyLink} />
 
-                {/* Ambience */}
+                {/* Kiosk Mode */}
                 <div className="pt-2 border-t border-black/5 dark:border-white/5 mt-2">
-                  <SubLabel>Ambience</SubLabel>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {AMBIENCE_OPTIONS.map(opt => (
-                      <OptionButton key={opt.key} active={props.ambienceMode === opt.key} onClick={() => props.onAmbienceModeChange(opt.key)}>
-                        {opt.icon} {opt.label}
-                      </OptionButton>
-                    ))}
+                  <SubLabel>Kiosk Mode</SubLabel>
+                  <div className="bg-black/5 dark:bg-white/5 rounded-lg p-3 space-y-1.5">
+                    <p className="text-xs text-black/60 dark:text-white/60 font-light">
+                      Zero-chrome display for TVs and digital frames. Open this URL on any screen:
+                    </p>
+                    <code className="block text-[11px] font-mono text-black/70 dark:text-white/70 bg-black/5 dark:bg-white/5 rounded px-2 py-1.5 break-all">
+                      {window.location.origin}/{encodeURIComponent(props.walletAddress)}?mode=kiosk
+                    </code>
                   </div>
                 </div>
 
@@ -377,8 +355,6 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                 <div className="pt-2 border-t border-black/5 dark:border-white/5 mt-2">
                   <ActionRow icon={<BarChart3 className="h-3.5 w-3.5" />} label="View Analytics" onClick={props.onAnalyticsOpen} />
                 </div>
-
-                {/* Walkthrough */}
 
               </SectionContent>
             )}

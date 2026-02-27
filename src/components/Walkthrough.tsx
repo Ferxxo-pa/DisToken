@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, Filter, Frame, Fullscreen,
-  LayoutGrid, List, Monitor, Music, Palette, Play, QrCode,
+  LayoutGrid, List, Monitor, Palette, Play, QrCode,
   Shuffle, Smartphone, X, ZoomIn,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -27,98 +27,71 @@ interface Step {
 const STEPS: Step[] = [
   {
     title: "Welcome to DisToken",
-    description: "The ultimate way to display your NFTs on any screen. No app to install, no hardware to buy — just a URL that turns any device into a digital art gallery. Works with Ethereum and Solana.",
+    description: "Display your NFTs on any screen. No app, no hardware — just a URL. Works with Ethereum and Solana.",
     icon: <Monitor className="h-8 w-8" />,
-    tip: "Supports images, video, audio, generative art, and pixel art NFTs",
   },
   {
-    title: "Simple Controls",
-    description: "The display keeps it clean — just play/pause, fullscreen, gallery grid, and a settings button. Arrow keys and swipe gestures navigate between pieces. Everything else lives in the ⚙ settings drawer.",
+    title: "Controls",
+    description: "Play/pause, fullscreen, and gallery grid are always visible. Everything else is in the ⚙ settings button. Swipe or use arrow keys to navigate.",
     icon: <Play className="h-8 w-8" />,
     shortcut: "← → Space",
-    tip: "Swipe left/right on mobile to navigate. Click artwork to zoom in.",
   },
   {
-    title: "Settings Drawer",
-    description: "Tap the ⚙ gear icon to open the settings drawer. It has three sections — Display (speed, transitions, backgrounds, frames), Curation (filters, playlists, shuffle), and Tools (remote, embed, download, ambience).",
+    title: "Settings",
+    description: "Tap ⚙ to open settings. Three sections: Display (speed, backgrounds, frames), Curation (filters, playlists, shuffle), and Tools (remote, embed, kiosk link).",
     icon: <Palette className="h-8 w-8" />,
-    tip: "All the power features are one tap away, but never in your face",
   },
   {
     title: "Backgrounds & Frames",
-    description: "5 background modes: blurred artwork fill, dark, light, color-matched from the art, or a custom color you pick. Plus 5 frame styles — minimal, gallery white mat, modern shadow, and ornate gold border.",
+    description: "5 backgrounds: blur, dark, light, color-match, custom. 5 frames: none, minimal, gallery mat, modern shadow, ornate gold. Mix and match.",
     icon: <Frame className="h-8 w-8" />,
     shortcut: "D",
-    tip: "Blur mode samples colors from the artwork edges for ambient backgrounds",
   },
   {
-    title: "Speed & Transitions",
-    description: "5 speed presets from Ambient (15s per piece for 24/7 displays) to Very Fast (1.5s). Plus a custom slider to dial in your exact timing from 1–30 seconds. Choose from fade, slide, zoom, or crossfade transitions.",
+    title: "Speed",
+    description: "5 presets from Ambient (15s) to Very Fast (1.5s). Or use the custom slider to set any speed from 1–30 seconds. 4 transition effects.",
     icon: <Shuffle className="h-8 w-8" />,
-    shortcut: "S",
-    tip: "Shuffle mode randomizes your display order — toggle anytime",
   },
   {
-    title: "Gallery Grid & Curation",
-    description: "Open the gallery grid to see all your NFTs at once. Pin favorites to show first, hide pieces you don't want displayed. Filter by collection or use Smart Groups that auto-sort by artist, chain, or media type.",
+    title: "Curate",
+    description: "Open the gallery grid to see everything. Pin favorites, hide what you don't want, filter by collection. Smart groups auto-sort by artist, chain, or media type.",
     icon: <LayoutGrid className="h-8 w-8" />,
-    tip: "Hover over any NFT in the grid to pin, hide, or add to a playlist",
   },
   {
     title: "Playlists",
-    description: "Create named playlists like \"Living Room\" or \"Gallery Night\". Add NFTs from the gallery grid, switch between playlists, or show all. Your curated shows, your way.",
+    description: "Create playlists like \"Living Room\" or \"Gallery Night\". Add NFTs from the grid, switch between them anytime.",
     icon: <List className="h-8 w-8" />,
-    tip: "Find playlists in the Curation section of Settings",
   },
   {
-    title: "Gallery Wall",
-    description: "Display multiple NFTs at once in a 2×2, 3×3, or 4×4 grid. Each cell rotates independently. Perfect for lobby TVs, gallery installations, or showing off a full collection at a glance.",
-    icon: <LayoutGrid className="h-8 w-8" />,
-    tip: "Toggle Gallery Wall in the Curation section of Settings",
-  },
-  {
-    title: "Zoom & Touch",
-    description: "Click or tap any artwork to enter zoom mode — scroll or pinch to zoom in, drag to pan around and see every detail. On mobile, swipe left/right to navigate between pieces.",
+    title: "Zoom",
+    description: "Click any artwork to zoom in. Scroll or pinch to magnify, drag to pan. Press Escape to exit.",
     icon: <ZoomIn className="h-8 w-8" />,
-    tip: "Press Escape or click outside to exit zoom",
   },
   {
     title: "Phone Remote",
-    description: "Control your TV display from your phone. Open Settings → Tools → Phone Remote to get a room code. Enter it on your phone's browser and you get a full remote — playback, speed, transitions, backgrounds, frames, and gallery wall controls.",
+    description: "Control the TV from your phone. Settings → Tools → Phone Remote. Get a room code, open it on your phone — full control, no app needed.",
     icon: <QrCode className="h-8 w-8" />,
-    tip: "Both devices need to be on the same website origin",
   },
   {
-    title: "Background Ambience",
-    description: "Set the mood with built-in ambient audio — choose from silence, gentle brown noise, rain sounds, or gallery hum. Find it in Settings → Tools → Ambience. Works with the mute button.",
-    icon: <Music className="h-8 w-8" />,
-    shortcut: "M",
-    tip: "Great for gallery installations and relaxation displays",
-  },
-  {
-    title: "Fullscreen & Kiosk",
-    description: "Press F for fullscreen. Add ?mode=kiosk to any URL for zero-chrome display mode — perfect for TVs and digital frames. Controls auto-hide so only the art is visible. Install as a PWA for a native app feel.",
+    title: "Kiosk & TV",
+    description: "Add ?mode=kiosk to any URL for a zero-chrome display. Find the kiosk link in Settings → Tools. Works on Samsung, LG, Fire Stick, Chromecast, Apple TV, Roku, Raspberry Pi.",
     icon: <Fullscreen className="h-8 w-8" />,
     shortcut: "F",
-    tip: "Kiosk URL example: distoken.art/vitalik.eth?mode=kiosk",
   },
   {
-    title: "Multi-Chain & Multi-Wallet",
-    description: "Enter any Ethereum address (0x… or .eth), Solana address, or .sol domain. Comma-separate multiple addresses to merge wallets into one gallery. Your preferences save per wallet.",
+    title: "Multi-Wallet",
+    description: "Enter any ETH address, ENS name, Solana address, or .sol domain. Comma-separate to merge multiple wallets. Settings save per wallet.",
     icon: <Filter className="h-8 w-8" />,
-    tip: "All your settings, pins, hidden NFTs, and playlists save per wallet",
   },
   {
-    title: "More Tools",
-    description: "Embed your gallery on any website with a single iframe code. Download NFTs at full resolution. Copy shareable links. View visitor analytics. Everything in Settings → Tools.",
+    title: "More",
+    description: "Embed your gallery on any website. Download NFTs at full resolution. Copy shareable links. Install as a PWA for native app feel.",
     icon: <Smartphone className="h-8 w-8" />,
-    tip: "Check the 📺 Display on a TV link for setup guides for 8+ devices",
   },
 ];
 
 interface WalkthroughProps {
   onComplete: () => void;
-  /** Force show even if already seen (e.g., from settings) */
   force?: boolean;
 }
 
@@ -163,7 +136,6 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
     onComplete();
   }, [onComplete]);
 
-  // Keyboard navigation
   useEffect(() => {
     if (!isVisible) return;
     const handler = (e: KeyboardEvent) => {
@@ -188,7 +160,6 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
         animate={{ opacity: 1, scale: 1 }}
         className="relative w-full max-w-lg bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl overflow-hidden"
       >
-        {/* Close button */}
         <button
           onClick={handleSkip}
           className="absolute top-4 right-4 z-10 w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 flex items-center justify-center hover:bg-black/10 dark:hover:bg-white/20 transition-colors"
@@ -196,7 +167,6 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
           <X className="h-4 w-4 text-black/60 dark:text-white/60" />
         </button>
 
-        {/* Progress bar */}
         <div className="absolute top-0 left-0 right-0 h-1 bg-black/5 dark:bg-white/5">
           <motion.div
             className="h-full bg-black dark:bg-white"
@@ -206,7 +176,6 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
           />
         </div>
 
-        {/* Content */}
         <div className="p-8 pt-10">
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
@@ -216,16 +185,14 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: direction * -40 }}
               transition={{ duration: 0.25, ease: 'easeInOut' }}
-              className="space-y-6"
+              className="space-y-5"
             >
-              {/* Icon */}
-              <div className="w-16 h-16 rounded-2xl bg-black/5 dark:bg-white/10 flex items-center justify-center text-black/80 dark:text-white/80">
+              <div className="w-14 h-14 rounded-2xl bg-black/5 dark:bg-white/10 flex items-center justify-center text-black/80 dark:text-white/80">
                 {step.icon}
               </div>
 
-              {/* Text */}
-              <div className="space-y-3">
-                <h2 className="text-2xl font-semibold tracking-tight text-black dark:text-white">
+              <div className="space-y-2">
+                <h2 className="text-xl font-semibold tracking-tight text-black dark:text-white">
                   {step.title}
                 </h2>
                 <p className="text-sm leading-relaxed text-black/60 dark:text-white/60 font-light">
@@ -233,51 +200,40 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
                 </p>
               </div>
 
-              {/* Shortcut badge + tip */}
-              <div className="space-y-2">
-                {step.shortcut && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-black/40 dark:text-white/40">Keyboard:</span>
-                    <div className="flex gap-1">
-                      {step.shortcut.split(' ').map((key, i) => (
-                        <kbd key={i} className="px-2 py-1 text-xs font-mono rounded bg-black/5 dark:bg-white/10 text-black/70 dark:text-white/70 border border-black/10 dark:border-white/10">
-                          {key}
-                        </kbd>
-                      ))}
-                    </div>
+              {step.shortcut && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-black/40 dark:text-white/40">Keyboard:</span>
+                  <div className="flex gap-1">
+                    {step.shortcut.split(' ').map((key, i) => (
+                      <kbd key={i} className="px-2 py-1 text-xs font-mono rounded bg-black/5 dark:bg-white/10 text-black/70 dark:text-white/70 border border-black/10 dark:border-white/10">
+                        {key}
+                      </kbd>
+                    ))}
                   </div>
-                )}
-                {step.tip && (
-                  <p className="text-xs text-black/40 dark:text-white/40 italic flex items-start gap-1.5">
-                    <span className="not-italic">💡</span> {step.tip}
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
+              {step.tip && (
+                <p className="text-xs text-black/40 dark:text-white/40 italic">
+                  💡 {step.tip}
+                </p>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
 
-        {/* Navigation */}
         <div className="px-8 pb-8 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div>
             {isFirst ? (
-              <button
-                onClick={handleSkip}
-                className="text-sm text-black/40 dark:text-white/40 hover:text-black/70 dark:hover:text-white/70 transition-colors font-light"
-              >
-                Skip tour
+              <button onClick={handleSkip} className="text-sm text-black/40 dark:text-white/40 hover:text-black/70 dark:hover:text-white/70 transition-colors font-light">
+                Skip
               </button>
             ) : (
-              <button
-                onClick={handlePrev}
-                className="flex items-center gap-1 text-sm text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-colors"
-              >
+              <button onClick={handlePrev} className="flex items-center gap-1 text-sm text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white transition-colors">
                 <ChevronLeft className="h-4 w-4" /> Back
               </button>
             )}
           </div>
 
-          {/* Dots */}
           <div className="flex items-center gap-1.5">
             {STEPS.map((_, i) => (
               <button
@@ -296,27 +252,10 @@ export function Walkthrough({ onComplete, force = false }: WalkthroughProps) {
             onClick={handleNext}
             className="flex items-center gap-1.5 text-sm font-medium bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-full hover:bg-black/80 dark:hover:bg-white/90 transition-colors"
           >
-            {isLast ? (
-              <>Start Exploring</>
-            ) : (
-              <>Next <ChevronRight className="h-4 w-4" /></>
-            )}
+            {isLast ? 'Start' : <>Next <ChevronRight className="h-4 w-4" /></>}
           </button>
         </div>
       </motion.div>
     </div>
-  );
-}
-
-/** Small "?" button to re-trigger walkthrough from anywhere */
-export function WalkthroughTrigger({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-8 h-8 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/20 flex items-center justify-center transition-colors"
-      title="Show feature tour"
-    >
-      <span className="text-xs font-semibold text-black/50 dark:text-white/50">?</span>
-    </button>
   );
 }

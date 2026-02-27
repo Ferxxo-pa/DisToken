@@ -2,12 +2,10 @@ import { Button } from "@/components/ui/button";
 import { AddToPlaylistButton, PlaylistManager } from "@/components/PlaylistManager";
 import { RemoteQROverlay } from "@/components/RemoteControl";
 import { Walkthrough } from "@/components/Walkthrough";
-import { GalleryWall } from "@/components/GalleryWall";
-import type { GridSize } from "@/components/GalleryWall";
+// GalleryWall — moved to Pro roadmap
 import { ZoomLightbox } from "@/components/ZoomLightbox";
 import { EmbedModal } from "@/components/EmbedModal";
-import { AmbiencePlayer, AMBIENCE_OPTIONS } from "@/components/AmbiencePlayer";
-import type { AmbienceMode } from "@/components/AmbiencePlayer";
+// AmbiencePlayer — moved to Pro roadmap
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 
@@ -24,8 +22,8 @@ import { recordDwell } from "@/lib/analytics";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, EyeOff, LayoutGrid,
-  Maximize, Minimize, Music, Pause, Pin, Play,
-  Settings, Undo2, Volume2, VolumeX
+  Maximize, Minimize, Moon, Music, Pause, Pin, Play,
+  Settings, Sun, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -392,8 +390,8 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const fullscreenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Gallery Wall state ───────────────────────────────────
-  const [isWallMode, setIsWallMode] = useState(false);
-  const [wallGridSize, setWallGridSize] = useState<GridSize>(3);
+  // Gallery wall — Pro roadmap
+  const [isWallMode] = useState(false);
 
   // ── Zoom lightbox state ──────────────────────────────────
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -408,7 +406,8 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [showPriceOverlay, setShowPriceOverlay] = useState(false);
 
   // ── Ambience ─────────────────────────────────────────────
-  const [ambienceMode, setAmbienceMode] = useState<AmbienceMode>('silence');
+  // Ambience — Pro roadmap
+  const [showNameOnSwitch, setShowNameOnSwitch] = useState(true);
 
   // ── Auto-collections filter ──────────────────────────────
   const [activeAutoGroup, setActiveAutoGroup] = useState<AutoGroupKey | null>(null);
@@ -519,9 +518,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     if (currentNFT?.imageUrl) extractDominantColor(currentNFT.imageUrl).then(setBgColor);
     setExpandedDesc(false);
 
-    // Show collection banner when collection changes
-    if (currentNFT?.collectionName && currentNFT.collectionName !== prevCollectionRef.current) {
-      if (prevCollectionRef.current !== '') { // Don't show on first load
+    // Show banner when collection changes OR when showNameOnSwitch is on
+    if (currentNFT) {
+      const collectionChanged = currentNFT.collectionName && currentNFT.collectionName !== prevCollectionRef.current && prevCollectionRef.current !== '';
+      if (collectionChanged || showNameOnSwitch) {
         setShowCollectionBanner(true);
         setTimeout(() => setShowCollectionBanner(false), 2500);
       }
@@ -792,17 +792,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
 
   // ── Shared UI pieces ─────────────────────────────────────
 
-  // ── Price overlay helper ─────────────────────────────────
-  const getPriceData = (nft: NFT): { price: string; symbol: string } | null => {
-    if (!showPriceOverlay || !nft.metadata) return null;
-    const meta = nft.metadata;
-    // Various places Alchemy/Helius might put floor price
-    const raw = meta.floor_price || meta.floorPrice || meta.floor || meta.opensea?.floor_price;
-    if (!raw && raw !== 0) return null;
-    const isEth = nft.contractAddress?.startsWith('0x');
-    return { price: parseFloat(raw).toFixed(3), symbol: isEth ? 'ETH' : 'SOL' };
-  };
-
   // ── Framed media render helper ────────────────────────────
   const renderFramedMedia = (
     nft: NFT,
@@ -811,7 +800,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     onVideoEnd?: () => void,
     onClickZoom?: () => void
   ) => {
-    const priceData = getPriceData(nft);
     const frameCls = FRAME_STYLES[frameStyle].className;
     return (
       <div
@@ -828,12 +816,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           isMuted={isMuted}
           onToggleMute={toggleMute}
         />
-        {priceData && (
-          <div className="absolute bottom-2 left-2 z-10 px-2 py-1 rounded-md bg-black/70 backdrop-blur-sm border border-white/20 text-white text-xs font-medium">
-            Floor: {priceData.price} {priceData.symbol}
-          </div>
-        )}
-
       </div>
     );
   };
@@ -1043,24 +1025,12 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         >
           <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
 
-          {/* Gallery Wall Mode */}
-          {isWallMode ? (
-            <div className="relative z-10 w-full h-full p-4 md:p-6">
-              <GalleryWall
-                nfts={nfts}
-                gridSize={wallGridSize}
-                intervalMs={currentSpeed * 0.8}
-                frameStyle={frameStyle}
-              />
-            </div>
-          ) : (
-            <AnimatePresence mode="wait">
-              <motion.div key={currentIndex} {...txn}
-                className="relative z-10 w-full h-full flex items-center justify-center p-6 md:p-8">
-                {renderFramedMedia(currentNFT, maxStyleFS, "rounded-lg shadow-2xl", handleVideoEnd, () => setIsZoomOpen(true))}
-              </motion.div>
-            </AnimatePresence>
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div key={currentIndex} {...txn}
+              className="relative z-10 w-full h-full flex items-center justify-center p-6 md:p-8">
+              {renderFramedMedia(currentNFT, maxStyleFS, "rounded-lg shadow-2xl", handleVideoEnd, () => setIsZoomOpen(true))}
+            </motion.div>
+          </AnimatePresence>
 
           {/* Controls overlay */}
           <div className="absolute inset-0 z-20">
@@ -1119,10 +1089,13 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                 exit={{ opacity: 0, y: -20 }}
                 className="absolute top-20 left-0 right-0 z-30 flex justify-center pointer-events-none"
               >
-                <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-2 border border-white/10">
+                <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-2 border border-white/10 text-center">
                   <p className="text-sm font-medium text-white/90 tracking-wide">
-                    {currentNFT.collectionName || 'Unknown Collection'}
+                    {showNameOnSwitch ? (currentNFT.name || `#${currentNFT.tokenId}`) : (currentNFT.collectionName || 'Unknown Collection')}
                   </p>
+                  {showNameOnSwitch && currentNFT.collectionName && (
+                    <p className="text-xs text-white/50 font-light">{currentNFT.collectionName}</p>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -1162,7 +1135,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         <ZoomLightbox nft={currentNFT} isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} />
         <EmbedModal walletAddress={walletAddress} isOpen={isEmbedOpen} onClose={() => setIsEmbedOpen(false)} />
         <AnalyticsPanel isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
-        <AmbiencePlayer mode={ambienceMode} isMuted={isMuted} />
         <SettingsDrawer
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
@@ -1184,24 +1156,18 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           onShuffleToggle={toggleShuffle}
           showMetadata={showMetadata}
           onMetadataToggle={toggleMetadata}
-          showPriceOverlay={showPriceOverlay}
-          onPriceOverlayToggle={() => setShowPriceOverlay(p => !p)}
+          showNameOnSwitch={showNameOnSwitch}
+          onShowNameOnSwitchToggle={() => setShowNameOnSwitch(p => !p)}
           collections={collections}
           selectedCollection={selectedCollection}
           onCollectionChange={(c) => { setSelectedCollection(c); setCurrentIndex(0); }}
           autoGroups={autoGroups}
           activeAutoGroup={activeAutoGroup}
           onAutoGroupChange={(g) => { setActiveAutoGroup(g); setCurrentIndex(0); }}
-          isGalleryWallMode={isWallMode}
-          onGalleryWallToggle={() => setIsWallMode(p => !p)}
-          galleryWallSize={wallGridSize}
-          onGalleryWallSizeChange={(s) => setWallGridSize(s)}
           activePlaylist={activePlaylist}
           onPlaylistOpen={() => setIsPlaylistOpen(true)}
           onRemoteOpen={() => setIsRemoteOpen(true)}
           onEmbedOpen={() => setIsEmbedOpen(true)}
-          ambienceMode={ambienceMode}
-          onAmbienceModeChange={(m) => setAmbienceMode(m)}
           onAnalyticsOpen={() => setIsAnalyticsOpen(true)}
           onWalkthroughOpen={() => { setWalkthroughForce(true); setShowWalkthrough(true); }}
           onDownload={downloadCurrentNFT}
@@ -1260,11 +1226,20 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                   </span>
                 )}
               </div>
-              {onChangeWallet && (
-                <Button onClick={onChangeWallet} variant="outline" size="sm" className="border-border/50 hover:bg-accent font-light shrink-0">
-                  Change Wallet
-                </Button>
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => setIsDarkMode(p => !p)}
+                  className="w-8 h-8 rounded-full border border-border/50 hover:bg-accent flex items-center justify-center transition-colors"
+                  title="Toggle dark mode (D)">
+                  {isDarkMode
+                    ? <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+                    : <Moon className="h-3.5 w-3.5 text-muted-foreground" />}
+                </button>
+                {onChangeWallet && (
+                  <Button onClick={onChangeWallet} variant="outline" size="sm" className="border-border/50 hover:bg-accent font-light">
+                    Change Wallet
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -1290,39 +1265,29 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         >
           <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
           <div className="relative z-10 w-full h-full flex items-center justify-center px-4 md:px-8 py-6 md:py-8">
-            {/* Gallery Wall Mode */}
-            {isWallMode ? (
-              <GalleryWall
-                nfts={nfts}
-                gridSize={wallGridSize}
-                intervalMs={currentSpeed * 0.8}
-                frameStyle={frameStyle}
-              />
-            ) : (
-              <AnimatePresence mode="wait">
-                <motion.div key={currentIndex} {...txn}
-                  className="w-full h-full flex items-center justify-center">
-                  <div className="relative max-w-full max-h-full group/nft"
-                    onMouseEnter={() => setHoveredNFT(currentNFT.tokenId)}
-                    onMouseLeave={() => setHoveredNFT(null)}>
-                    {renderFramedMedia(currentNFT, maxStyleNormal, "shadow-refined rounded-lg", handleVideoEnd, () => setIsZoomOpen(true))}
-                    {hoveredNFT === currentNFT.tokenId && (
-                      <div className="absolute top-2 right-2 flex gap-1.5 z-10">
-                        <button onClick={() => togglePin(currentNFT.tokenId)}
-                          className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/80">
-                          <Pin className={`h-3.5 w-3.5 ${pinnedIds.has(currentNFT.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
-                        </button>
-                        <button onClick={() => toggleHide(currentNFT.tokenId)}
-                          className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-red-600/80">
-                          <EyeOff className="h-3.5 w-3.5 text-white" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              </AnimatePresence>
-            )}
-            {!isWallMode && renderArrows(false)}
+            <AnimatePresence mode="wait">
+              <motion.div key={currentIndex} {...txn}
+                className="w-full h-full flex items-center justify-center">
+                <div className="relative max-w-full max-h-full group/nft"
+                  onMouseEnter={() => setHoveredNFT(currentNFT.tokenId)}
+                  onMouseLeave={() => setHoveredNFT(null)}>
+                  {renderFramedMedia(currentNFT, maxStyleNormal, "shadow-refined rounded-lg", handleVideoEnd, () => setIsZoomOpen(true))}
+                  {hoveredNFT === currentNFT.tokenId && (
+                    <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+                      <button onClick={() => togglePin(currentNFT.tokenId)}
+                        className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-black/80">
+                        <Pin className={`h-3.5 w-3.5 ${pinnedIds.has(currentNFT.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
+                      </button>
+                      <button onClick={() => toggleHide(currentNFT.tokenId)}
+                        className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:bg-red-600/80">
+                        <EyeOff className="h-3.5 w-3.5 text-white" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </AnimatePresence>
+            {renderArrows(false)}
 
             {/* Collection transition banner (normal mode) */}
             <AnimatePresence>
@@ -1333,10 +1298,13 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                   exit={{ opacity: 0, y: -20 }}
                   className="absolute top-6 left-0 right-0 z-30 flex justify-center pointer-events-none"
                 >
-                  <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-2 border border-white/10">
+                  <div className="bg-black/50 backdrop-blur-md rounded-full px-6 py-2 border border-white/10 text-center">
                     <p className="text-sm font-medium text-white/90 tracking-wide">
-                      {currentNFT.collectionName || 'Unknown Collection'}
+                      {showNameOnSwitch ? (currentNFT.name || `#${currentNFT.tokenId}`) : (currentNFT.collectionName || 'Unknown Collection')}
                     </p>
+                    {showNameOnSwitch && currentNFT.collectionName && (
+                      <p className="text-xs text-white/50 font-light">{currentNFT.collectionName}</p>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -1378,7 +1346,6 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
       <ZoomLightbox nft={currentNFT} isOpen={isZoomOpen} onClose={() => setIsZoomOpen(false)} />
       <EmbedModal walletAddress={walletAddress} isOpen={isEmbedOpen} onClose={() => setIsEmbedOpen(false)} />
       <AnalyticsPanel isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
-      <AmbiencePlayer mode={ambienceMode} isMuted={isMuted} />
       <SettingsDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
@@ -1400,24 +1367,18 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         onShuffleToggle={toggleShuffle}
         showMetadata={showMetadata}
         onMetadataToggle={toggleMetadata}
-        showPriceOverlay={showPriceOverlay}
-        onPriceOverlayToggle={() => setShowPriceOverlay(p => !p)}
+          showNameOnSwitch={showNameOnSwitch}
+          onShowNameOnSwitchToggle={() => setShowNameOnSwitch(p => !p)}
         collections={collections}
         selectedCollection={selectedCollection}
         onCollectionChange={(c) => { setSelectedCollection(c); setCurrentIndex(0); }}
         autoGroups={autoGroups}
         activeAutoGroup={activeAutoGroup}
         onAutoGroupChange={(g) => { setActiveAutoGroup(g); setCurrentIndex(0); }}
-        isGalleryWallMode={isWallMode}
-        onGalleryWallToggle={() => setIsWallMode(p => !p)}
-        galleryWallSize={wallGridSize}
-        onGalleryWallSizeChange={(s) => setWallGridSize(s)}
         activePlaylist={activePlaylist}
         onPlaylistOpen={() => setIsPlaylistOpen(true)}
         onRemoteOpen={() => setIsRemoteOpen(true)}
         onEmbedOpen={() => setIsEmbedOpen(true)}
-        ambienceMode={ambienceMode}
-        onAmbienceModeChange={(m) => setAmbienceMode(m)}
         onAnalyticsOpen={() => setIsAnalyticsOpen(true)}
         onWalkthroughOpen={() => { setWalkthroughForce(true); setShowWalkthrough(true); }}
         onDownload={downloadCurrentNFT}

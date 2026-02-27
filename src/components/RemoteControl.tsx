@@ -242,48 +242,7 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
             </div>
           </div>
 
-          {/* Gallery Wall */}
-          <div className="space-y-2">
-            <p className="text-xs text-white/30 font-light">Gallery Wall</p>
-            <div className="grid grid-cols-4 gap-1.5">
-              <button
-                onClick={() => send('set-wall', { enabled: false })}
-                className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
-              >
-                Off
-              </button>
-              {[2, 3, 4].map(s => (
-                <button
-                  key={s}
-                  onClick={() => send('set-wall', { enabled: true, size: s })}
-                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
-                >
-                  {s}×{s}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Ambience */}
-          <div className="space-y-2">
-            <p className="text-xs text-white/30 font-light">Ambience</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[
-                { key: 'silence', label: 'Silence', icon: '🔇' },
-                { key: 'brown-noise', label: 'Brown Noise', icon: '🌊' },
-                { key: 'rain', label: 'Rain', icon: '🌧' },
-                { key: 'gallery', label: 'Gallery', icon: '🏛' },
-              ].map(a => (
-                <button
-                  key={a.key}
-                  onClick={() => send('set-ambience', { mode: a.key })}
-                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
-                >
-                  {a.icon} {a.label}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       )}
     </div>
