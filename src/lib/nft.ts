@@ -190,8 +190,8 @@ export function chainBadge(chain: Chain): string {
     polygon: '🟣 Polygon',
     arbitrum: '🔵 Arbitrum',
     optimism: '🔴 Optimism',
-    tezos: 'ꜩ Tezos',
-    bitcoin: '₿ Bitcoin',
+    tezos: '🔷 Tezos',
+    bitcoin: '🟠 Bitcoin',
     unknown: 'Unknown',
   };
   return badges[chain] || 'Unknown';
