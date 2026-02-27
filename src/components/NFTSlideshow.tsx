@@ -550,7 +550,15 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         case 'toggle-shuffle': setIsShuffle(p => !p); setShuffleSeed(s => s + 1); setCurrentIndex(0); break;
         case 'toggle-fullscreen': toggleFullscreen(); break;
         case 'go-to': if (cmd.index >= 0 && cmd.index < nfts.length) setCurrentIndex(cmd.index); break;
-        case 'set-speed': if (cmd.speed in SPEED_PRESETS) setSpeed(cmd.speed as keyof typeof SPEED_PRESETS); break;
+        case 'set-speed': if ((cmd as any).speed in SPEED_PRESETS) setSpeed((cmd as any).speed as keyof typeof SPEED_PRESETS); break;
+        case 'set-transition': setTransition((cmd as any).transition); break;
+        case 'set-bg': setBgMode((cmd as any).mode); break;
+        case 'set-frame': setFrameStyle((cmd as any).frame); break;
+        case 'toggle-dark': setIsDarkMode(p => !p); break;
+        case 'set-wall':
+          if ((cmd as any).enabled) { setIsWallMode(true); setWallGridSize((cmd as any).size || 2); }
+          else { setIsWallMode(false); }
+          break;
         case 'ping':
           // Respond with state
           host.sendState({

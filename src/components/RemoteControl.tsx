@@ -2,8 +2,8 @@ import { Button } from "@/components/ui/button";
 import { type RemoteState, RemoteClient } from "@/lib/remote";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Info, Maximize, Pause, Play,
-  Shuffle, Smartphone, Wifi, WifiOff,
+  ChevronLeft, ChevronRight, Frame, Info, LayoutGrid, Maximize,
+  Moon, Palette, Pause, Play, Shuffle, Smartphone, Sun, Wifi, WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -25,12 +25,10 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
     });
     clientRef.current = client;
 
-    // Ping every 2s to check connection
     pingInterval.current = setInterval(() => {
       client.send({ type: 'ping' });
     }, 2000);
 
-    // Timeout: if no pong in 5s, mark disconnected
     let timeout: ReturnType<typeof setTimeout>;
     const resetTimeout = () => {
       clearTimeout(timeout);
@@ -86,31 +84,17 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col p-4 gap-4">
-          {/* Current NFT preview */}
+        <div className="flex-1 flex flex-col p-4 gap-4 overflow-auto">
+          {/* Now playing — minimal text only */}
           {state && (
-            <div className="rounded-xl overflow-hidden bg-white/5 border border-white/10">
-              {state.currentImage && (
-                <div className="aspect-square max-h-48 mx-auto overflow-hidden">
-                  <img
-                    src={state.currentImage}
-                    alt={state.currentName}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              )}
-              <div className="p-4 space-y-1">
-                <p className="text-sm font-medium truncate">{state.currentName || 'Unknown'}</p>
-                <p className="text-xs text-white/40 truncate">{state.currentCollection || ''}</p>
-                <p className="text-xs text-white/20">
-                  {state.currentIndex + 1} / {state.total}
-                </p>
-              </div>
+            <div className="text-center py-2">
+              <p className="text-sm font-medium truncate">{state.currentName || 'Unknown'}</p>
+              <p className="text-xs text-white/30">{state.currentIndex + 1} / {state.total}</p>
             </div>
           )}
 
           {/* Main controls */}
-          <div className="flex items-center justify-center gap-4 py-4">
+          <div className="flex items-center justify-center gap-4 py-2">
             <button
               onClick={() => send('prev')}
               className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 flex items-center justify-center transition-colors"
@@ -135,35 +119,34 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
             </button>
           </div>
 
-          {/* Secondary controls */}
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => send('toggle-shuffle')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors"
-            >
+          {/* Quick toggles */}
+          <div className="grid grid-cols-4 gap-2">
+            <button onClick={() => send('toggle-shuffle')}
+              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
               <Shuffle className="h-5 w-5 text-white/70" />
-              <span className="text-xs text-white/40">Shuffle</span>
+              <span className="text-[10px] text-white/40">Shuffle</span>
             </button>
-            <button
-              onClick={() => send('toggle-info')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors"
-            >
+            <button onClick={() => send('toggle-info')}
+              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
               <Info className="h-5 w-5 text-white/70" />
-              <span className="text-xs text-white/40">Info</span>
+              <span className="text-[10px] text-white/40">Info</span>
             </button>
-            <button
-              onClick={() => send('toggle-fullscreen')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors"
-            >
+            <button onClick={() => send('toggle-fullscreen')}
+              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
               <Maximize className="h-5 w-5 text-white/70" />
-              <span className="text-xs text-white/40">Fullscreen</span>
+              <span className="text-[10px] text-white/40">Fullscreen</span>
+            </button>
+            <button onClick={() => send('toggle-dark')}
+              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
+              <Moon className="h-5 w-5 text-white/70" />
+              <span className="text-[10px] text-white/40">Theme</span>
             </button>
           </div>
 
-          {/* Speed presets */}
+          {/* Speed */}
           <div className="space-y-2">
             <p className="text-xs text-white/30 font-light">Speed</p>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5">
               {['ambient', 'slow', 'normal', 'fast', 'veryFast'].map(s => (
                 <button
                   key={s}
@@ -174,7 +157,83 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
                       : 'bg-white/5 text-white/40 hover:bg-white/10'
                   }`}
                 >
-                  {s === 'veryFast' ? 'Fast+' : s.charAt(0).toUpperCase() + s.slice(1)}
+                  {s === 'veryFast' ? 'Fast+' : s === 'ambient' ? 'Amb' : s.charAt(0).toUpperCase() + s.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Transition */}
+          <div className="space-y-2">
+            <p className="text-xs text-white/30 font-light">Transition</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {['fade', 'slide', 'zoom', 'crossfade'].map(t => (
+                <button
+                  key={t}
+                  onClick={() => send('set-transition', { transition: t })}
+                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors capitalize"
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Background */}
+          <div className="space-y-2">
+            <p className="text-xs text-white/30 font-light">Background</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { key: 'blur', label: 'Blur', icon: '🌫' },
+                { key: 'dark', label: 'Dark', icon: '⬛' },
+                { key: 'light', label: 'Light', icon: '⬜' },
+                { key: 'match', label: 'Match', icon: '🎨' },
+                { key: 'custom', label: 'Custom', icon: '🖌' },
+              ].map(bg => (
+                <button
+                  key={bg.key}
+                  onClick={() => send('set-bg', { mode: bg.key })}
+                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
+                >
+                  {bg.icon} {bg.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Frame */}
+          <div className="space-y-2">
+            <p className="text-xs text-white/30 font-light">Frame</p>
+            <div className="grid grid-cols-3 gap-1.5">
+              {['none', 'minimal', 'gallery', 'modern', 'ornate'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => send('set-frame', { frame: f })}
+                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors capitalize"
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Gallery Wall */}
+          <div className="space-y-2">
+            <p className="text-xs text-white/30 font-light">Gallery Wall</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              <button
+                onClick={() => send('set-wall', { enabled: false })}
+                className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
+              >
+                Off
+              </button>
+              {[2, 3, 4].map(s => (
+                <button
+                  key={s}
+                  onClick={() => send('set-wall', { enabled: true, size: s })}
+                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
+                >
+                  {s}×{s}
                 </button>
               ))}
             </div>
@@ -201,7 +260,6 @@ export function RemoteQROverlay({
 
   const remoteUrl = `${baseUrl}/remote/${roomCode}`;
 
-  // Simple text-based QR alternative (actual QR would need a library)
   return (
     <AnimatePresence>
       <motion.div
@@ -226,7 +284,6 @@ export function RemoteQROverlay({
             </p>
           </div>
 
-          {/* Room code display */}
           <div className="bg-black/5 rounded-xl p-4 space-y-3">
             <p className="text-xs text-black/40 uppercase tracking-wider">Room Code</p>
             <p className="text-4xl font-mono font-bold tracking-[0.3em] text-black">
@@ -234,7 +291,6 @@ export function RemoteQROverlay({
             </p>
           </div>
 
-          {/* URL */}
           <div className="bg-black/5 rounded-xl p-3">
             <p className="text-xs text-black/40 mb-1">Or visit directly:</p>
             <p className="text-sm font-mono text-black/70 break-all">{remoteUrl}</p>
