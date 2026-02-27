@@ -518,13 +518,9 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     if (currentNFT?.imageUrl) extractDominantColor(currentNFT.imageUrl).then(setBgColor);
     setExpandedDesc(false);
 
-    // Show banner on collection change or (if enabled) on every switch
+    // Show banner only when showNameOnSwitch is enabled
     if (currentNFT) {
-      const collectionChanged = currentNFT.collectionName && currentNFT.collectionName !== prevCollectionRef.current && prevCollectionRef.current !== '';
       if (showNameOnSwitch) {
-        setShowCollectionBanner(true);
-        setTimeout(() => setShowCollectionBanner(false), 2500);
-      } else if (collectionChanged) {
         setShowCollectionBanner(true);
         setTimeout(() => setShowCollectionBanner(false), 2500);
       }
