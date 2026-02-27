@@ -855,10 +855,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           className={`${btn} h-9 w-9 rounded-full`} title="Gallery">
           <LayoutGrid className="h-4 w-4" />
         </Button>
-        {/* Settings drawer toggle */}
-        <Button variant="outline" size="icon" onClick={() => setIsDrawerOpen(true)}
-          className={`${btn} h-9 w-9 rounded-full`} title="Settings">
-          <Settings className="h-4 w-4" />
+        {/* Customize button */}
+        <Button variant="outline" onClick={() => setIsDrawerOpen(true)}
+          className={`${btn} h-9 rounded-full px-4 text-xs font-medium tracking-wide`}>
+          Customize
         </Button>
       </div>
     );
