@@ -1,13 +1,28 @@
-import { Button } from "@/components/ui/button";
 import { type RemoteState, RemoteClient } from "@/lib/remote";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Frame, Info, LayoutGrid, Maximize,
-  Moon, Palette, Pause, Play, Shuffle, Smartphone, Sun, Wifi, WifiOff,
+  ChevronDown, ChevronLeft, ChevronRight, Info,
+  Maximize, Moon, Pause, Play, Shuffle, Smartphone, Wifi, WifiOff,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-/** Remote control UI for the phone browser */
+/** Collapsible section for remote settings */
+function Section({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border border-white/10 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 bg-white/5 hover:bg-white/10 transition-colors"
+      >
+        <span className="text-xs font-medium text-white/60">{title}</span>
+        <ChevronDown className={`h-4 w-4 text-white/30 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <div className="p-3 space-y-3">{children}</div>}
+    </div>
+  );
+}
+
 interface RemoteControlPageProps {
   roomCode: string;
 }
@@ -17,7 +32,6 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
   const [connected, setConnected] = useState(false);
   const [customSpeedMs, setCustomSpeedMs] = useState(5000);
   const clientRef = useRef<RemoteClient | null>(null);
-  const pingInterval = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const client = new RemoteClient(roomCode, (newState) => {
@@ -26,7 +40,7 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
     });
     clientRef.current = client;
 
-    pingInterval.current = setInterval(() => {
+    const pingInterval = setInterval(() => {
       client.send({ type: 'ping' });
     }, 2000);
 
@@ -41,7 +55,7 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
 
     return () => {
       client.destroy();
-      if (pingInterval.current) clearInterval(pingInterval.current);
+      clearInterval(pingInterval);
       clearTimeout(timeout);
     };
   }, [roomCode]);
@@ -56,20 +70,20 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
       <header className="border-b border-white/10 p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-white/60" />
-            <h1 className="text-sm font-medium tracking-tight">DisToken Remote</h1>
+            <Smartphone className="h-4 w-4 text-white/50" />
+            <span className="text-sm font-medium">DisToken Remote</span>
           </div>
           <div className="flex items-center gap-2">
             {connected ? (
               <span className="flex items-center gap-1.5 text-xs text-green-400">
-                <Wifi className="h-3.5 w-3.5" /> Connected
+                <Wifi className="h-3 w-3" /> Live
               </span>
             ) : (
               <span className="flex items-center gap-1.5 text-xs text-red-400">
-                <WifiOff className="h-3.5 w-3.5" /> Disconnected
+                <WifiOff className="h-3 w-3" /> Offline
               </span>
             )}
-            <span className="text-xs text-white/30 font-mono">#{roomCode}</span>
+            <span className="text-[10px] text-white/20 font-mono">#{roomCode}</span>
           </div>
         </div>
       </header>
@@ -77,76 +91,65 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
       {!connected && !state ? (
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mx-auto">
-              <Wifi className="h-8 w-8 text-white/20 animate-pulse" />
-            </div>
-            <p className="text-sm text-white/40 font-light">Connecting to display...</p>
-            <p className="text-xs text-white/20 font-light">Make sure both devices are on the same page</p>
+            <Wifi className="h-10 w-10 text-white/20 animate-pulse mx-auto" />
+            <p className="text-sm text-white/40">Connecting to display...</p>
+            <p className="text-xs text-white/20">Both devices must have the same DisToken page open</p>
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col p-4 gap-4 overflow-auto">
-          {/* Now playing — minimal text only */}
+        <div className="flex-1 flex flex-col p-4 gap-4 overflow-auto pb-8">
+          {/* Now playing */}
           {state && (
-            <div className="text-center py-2">
+            <div className="text-center py-1">
               <p className="text-sm font-medium truncate">{state.currentName || 'Unknown'}</p>
-              <p className="text-xs text-white/30">{state.currentIndex + 1} / {state.total}</p>
+              <p className="text-[11px] text-white/30">{state.currentIndex + 1} / {state.total}</p>
             </div>
           )}
 
-          {/* Main controls */}
-          <div className="flex items-center justify-center gap-4 py-2">
+          {/* Playback controls */}
+          <div className="flex items-center justify-center gap-4">
             <button
               onClick={() => send('prev')}
-              className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 flex items-center justify-center transition-colors"
+              className="w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 flex items-center justify-center transition-colors"
             >
-              <ChevronLeft className="h-8 w-8" />
+              <ChevronLeft className="h-7 w-7" />
             </button>
             <button
               onClick={() => send('toggle-play')}
-              className="w-20 h-20 rounded-full bg-white text-black hover:bg-white/90 active:bg-white/80 flex items-center justify-center transition-colors shadow-lg"
+              className="w-18 h-18 rounded-full bg-white text-black hover:bg-white/90 active:bg-white/80 flex items-center justify-center transition-colors shadow-lg"
+              style={{ width: 72, height: 72 }}
             >
-              {state?.isPlaying ? (
-                <Pause className="h-10 w-10" />
-              ) : (
-                <Play className="h-10 w-10 ml-1" />
-              )}
+              {state?.isPlaying ? <Pause className="h-9 w-9" /> : <Play className="h-9 w-9 ml-1" />}
             </button>
             <button
               onClick={() => send('next')}
-              className="w-16 h-16 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 flex items-center justify-center transition-colors"
+              className="w-14 h-14 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 flex items-center justify-center transition-colors"
             >
-              <ChevronRight className="h-8 w-8" />
+              <ChevronRight className="h-7 w-7" />
             </button>
           </div>
 
-          {/* Quick toggles */}
+          {/* Quick toggles row */}
           <div className="grid grid-cols-4 gap-2">
-            <button onClick={() => send('toggle-shuffle')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
-              <Shuffle className="h-5 w-5 text-white/70" />
-              <span className="text-[10px] text-white/40">Shuffle</span>
-            </button>
-            <button onClick={() => send('toggle-info')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
-              <Info className="h-5 w-5 text-white/70" />
-              <span className="text-[10px] text-white/40">Info</span>
-            </button>
-            <button onClick={() => send('toggle-fullscreen')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
-              <Maximize className="h-5 w-5 text-white/70" />
-              <span className="text-[10px] text-white/40">Fullscreen</span>
-            </button>
-            <button onClick={() => send('toggle-dark')}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors">
-              <Moon className="h-5 w-5 text-white/70" />
-              <span className="text-[10px] text-white/40">Theme</span>
-            </button>
+            {[
+              { icon: <Shuffle className="h-4 w-4" />, label: 'Shuffle', action: () => send('toggle-shuffle') },
+              { icon: <Info className="h-4 w-4" />, label: 'Info', action: () => send('toggle-info') },
+              { icon: <Maximize className="h-4 w-4" />, label: 'Full', action: () => send('toggle-fullscreen') },
+              { icon: <Moon className="h-4 w-4" />, label: 'Theme', action: () => send('toggle-dark') },
+            ].map(btn => (
+              <button
+                key={btn.label}
+                onClick={btn.action}
+                className="flex flex-col items-center gap-1 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 active:bg-white/15 transition-colors"
+              >
+                <span className="text-white/60">{btn.icon}</span>
+                <span className="text-[10px] text-white/35">{btn.label}</span>
+              </button>
+            ))}
           </div>
 
-          {/* Speed */}
-          <div className="space-y-2">
-            <p className="text-xs text-white/30 font-light">Speed</p>
+          {/* Speed section */}
+          <Section title="Speed" defaultOpen>
             <div className="flex gap-1.5">
               {['ambient', 'slow', 'normal', 'fast', 'veryFast'].map(s => (
                 <button
@@ -162,7 +165,6 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
                 </button>
               ))}
             </div>
-            {/* Custom speed slider */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] text-white/20">Custom</span>
@@ -181,68 +183,60 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
                 }}
                 className="w-full h-1.5 rounded-full appearance-none bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
               />
-              <div className="flex justify-between text-[9px] text-white/15">
-                <span>1s</span>
-                <span>30s</span>
+            </div>
+          </Section>
+
+          {/* Display section */}
+          <Section title="Display">
+            <div className="space-y-2">
+              <p className="text-[10px] text-white/25">Transition</p>
+              <div className="grid grid-cols-4 gap-1.5">
+                {['fade', 'slide', 'zoom', 'crossfade'].map(t => (
+                  <button
+                    key={t}
+                    onClick={() => send('set-transition', { transition: t })}
+                    className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors capitalize"
+                  >
+                    {t}
+                  </button>
+                ))}
               </div>
             </div>
-          </div>
-
-          {/* Transition */}
-          <div className="space-y-2">
-            <p className="text-xs text-white/30 font-light">Transition</p>
-            <div className="grid grid-cols-4 gap-1.5">
-              {['fade', 'slide', 'zoom', 'crossfade'].map(t => (
-                <button
-                  key={t}
-                  onClick={() => send('set-transition', { transition: t })}
-                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors capitalize"
-                >
-                  {t}
-                </button>
-              ))}
+            <div className="space-y-2">
+              <p className="text-[10px] text-white/25">Background</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { key: 'blur', label: '🌫 Blur' },
+                  { key: 'dark', label: '⬛ Dark' },
+                  { key: 'light', label: '⬜ Light' },
+                  { key: 'match', label: '🎨 Match' },
+                  { key: 'custom', label: '🖌 Custom' },
+                ].map(bg => (
+                  <button
+                    key={bg.key}
+                    onClick={() => send('set-bg', { mode: bg.key })}
+                    className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
+                  >
+                    {bg.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* Background */}
-          <div className="space-y-2">
-            <p className="text-xs text-white/30 font-light">Background</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {[
-                { key: 'blur', label: 'Blur', icon: '🌫' },
-                { key: 'dark', label: 'Dark', icon: '⬛' },
-                { key: 'light', label: 'Light', icon: '⬜' },
-                { key: 'match', label: 'Match', icon: '🎨' },
-                { key: 'custom', label: 'Custom', icon: '🖌' },
-              ].map(bg => (
-                <button
-                  key={bg.key}
-                  onClick={() => send('set-bg', { mode: bg.key })}
-                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
-                >
-                  {bg.icon} {bg.label}
-                </button>
-              ))}
+            <div className="space-y-2">
+              <p className="text-[10px] text-white/25">Frame</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {['none', 'minimal', 'gallery', 'modern', 'ornate'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => send('set-frame', { frame: f })}
+                    className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors capitalize"
+                  >
+                    {f}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-
-          {/* Frame */}
-          <div className="space-y-2">
-            <p className="text-xs text-white/30 font-light">Frame</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {['none', 'minimal', 'gallery', 'modern', 'ornate'].map(f => (
-                <button
-                  key={f}
-                  onClick={() => send('set-frame', { frame: f })}
-                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors capitalize"
-                >
-                  {f}
-                </button>
-              ))}
-            </div>
-          </div>
-
-
+          </Section>
         </div>
       )}
     </div>
@@ -285,7 +279,7 @@ export function RemoteQROverlay({
             <Smartphone className="h-10 w-10 mx-auto text-black/60" />
             <h2 className="text-xl font-semibold text-black">Phone Remote</h2>
             <p className="text-sm text-black/50 font-light">
-              Open this URL on your phone to control the display
+              Open this URL on another tab to control the display
             </p>
           </div>
 
@@ -297,17 +291,17 @@ export function RemoteQROverlay({
           </div>
 
           <div className="bg-black/5 rounded-xl p-3">
-            <p className="text-xs text-black/40 mb-1">Or visit directly:</p>
+            <p className="text-xs text-black/40 mb-1">Open in another tab:</p>
             <p className="text-sm font-mono text-black/70 break-all">{remoteUrl}</p>
           </div>
 
           <p className="text-xs text-black/30 font-light">
-            Both devices must be on the same page origin for the connection to work.
+            Remote works between tabs in the same browser. For cross-device control, open the URL on both devices.
           </p>
 
-          <Button onClick={onClose} variant="outline" className="w-full">
+          <button onClick={onClose} className="w-full py-3 rounded-xl border border-black/10 text-sm text-black/70 hover:bg-black/5 transition-colors">
             Close
-          </Button>
+          </button>
         </motion.div>
       </motion.div>
     </AnimatePresence>

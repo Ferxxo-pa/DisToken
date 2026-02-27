@@ -426,6 +426,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [roomCode] = useState(() => generateRoomCode());
   const [isRemoteOpen, setIsRemoteOpen] = useState(false);
   const remoteHostRef = useRef<RemoteHost | null>(null);
+  const remoteStateRef = useRef<() => any>(() => null);
 
   // ── Schedule state ───────────────────────────────────────
   const [activeScheduleSlot, setActiveScheduleSlot] = useState<ScheduleSlot | null>(null);
@@ -539,6 +540,18 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   }, [walletAddress, speed, transition, bgMode, customBgColor, showMetadata, isShuffle]);
 
   // ── Remote host ──────────────────────────────────────────
+  // Keep a ref to current state so the ping handler always returns fresh data
+  remoteStateRef.current = () => ({
+    currentIndex,
+    total: nfts.length,
+    isPlaying,
+    currentName: currentNFT?.name || '',
+    currentCollection: currentNFT?.collectionName || '',
+    currentImage: currentNFT?.imageUrl || '',
+    speed,
+    walletAddress,
+  });
+
   useEffect(() => {
     const host = new RemoteHost(roomCode, (cmd: RemoteCommand) => {
       switch (cmd.type) {
@@ -551,29 +564,14 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         case 'toggle-shuffle': setIsShuffle(p => !p); setShuffleSeed(s => s + 1); setCurrentIndex(0); break;
         case 'toggle-fullscreen': toggleFullscreen(); break;
         case 'go-to': if (cmd.index >= 0 && cmd.index < nfts.length) setCurrentIndex(cmd.index); break;
-        case 'set-speed': if ((cmd as any).speed in SPEED_PRESETS) setSpeed((cmd as any).speed as keyof typeof SPEED_PRESETS); break;
+        case 'set-speed': if ((cmd as any).speed in SPEED_PRESETS) setSpeed((cmd as any).speed as keyof typeof SPEED_PRESETS); setUseCustomSpeed(false); break;
         case 'set-transition': setTransition((cmd as any).transition); break;
         case 'set-bg': setBgMode((cmd as any).mode); break;
         case 'set-frame': setFrameStyle((cmd as any).frame); break;
         case 'toggle-dark': setIsDarkMode(p => !p); break;
-        case 'set-wall':
-          if ((cmd as any).enabled) { setIsWallMode(true); setWallGridSize((cmd as any).size || 2); }
-          else { setIsWallMode(false); }
-          break;
         case 'set-custom-speed': setCustomSpeedMs((cmd as any).ms); setUseCustomSpeed(true); break;
-        case 'set-ambience': setAmbienceMode((cmd as any).mode); break;
         case 'ping':
-          // Respond with state
-          host.sendState({
-            currentIndex,
-            total: nfts.length,
-            isPlaying,
-            currentName: currentNFT?.name || '',
-            currentCollection: currentNFT?.collectionName || '',
-            currentImage: currentNFT?.imageUrl || '',
-            speed,
-            walletAddress,
-          });
+          host.sendState(remoteStateRef.current());
           break;
       }
     });
@@ -583,16 +581,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
 
   // Send state updates to remote whenever key state changes
   useEffect(() => {
-    remoteHostRef.current?.sendState({
-      currentIndex,
-      total: nfts.length,
-      isPlaying,
-      currentName: currentNFT?.name || '',
-      currentCollection: currentNFT?.collectionName || '',
-      currentImage: currentNFT?.imageUrl || '',
-      speed,
-      walletAddress,
-    });
+    remoteHostRef.current?.sendState(remoteStateRef.current());
   }, [currentIndex, isPlaying, nfts.length, speed, currentNFT?.name]);
 
   // ── Schedule polling ─────────────────────────────────────

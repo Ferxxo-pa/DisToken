@@ -16,6 +16,9 @@ export type RemoteCommand =
   | { type: 'set-speed'; speed: string }
   | { type: 'set-transition'; transition: string }
   | { type: 'set-bg'; mode: string }
+  | { type: 'set-frame'; frame: string }
+  | { type: 'toggle-dark' }
+  | { type: 'set-custom-speed'; ms: number }
   | { type: 'ping' }
   | { type: 'pong'; state: RemoteState };
 
