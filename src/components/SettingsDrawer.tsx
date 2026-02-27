@@ -47,6 +47,8 @@ interface SettingsDrawerProps {
   // Display
   speed: keyof typeof SPEED_PRESETS;
   onSpeedChange: (speed: keyof typeof SPEED_PRESETS) => void;
+  customSpeedMs: number;
+  onCustomSpeedMsChange: (ms: number) => void;
   transition: TransitionType;
   onTransitionChange: (t: TransitionType) => void;
   bgMode: BackgroundMode;
@@ -152,7 +154,24 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
           </button>
         </div>
 
-        <div className="p-4 space-y-1">
+        {/* Feature Tour — top of drawer */}
+        <div className="px-4 pt-4 pb-2">
+          <button
+            onClick={() => { props.onWalkthroughOpen(); props.onClose(); }}
+            className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-gradient-to-r from-black/5 to-black/10 dark:from-white/5 dark:to-white/10 hover:from-black/10 hover:to-black/15 dark:hover:from-white/10 dark:hover:to-white/15 transition-all border border-black/5 dark:border-white/5"
+          >
+            <div className="w-10 h-10 rounded-xl bg-black dark:bg-white flex items-center justify-center shrink-0">
+              <HelpCircle className="h-5 w-5 text-white dark:text-black" />
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-black dark:text-white">Feature Tour</p>
+              <p className="text-xs text-black/40 dark:text-white/40 font-light">Learn what DisToken can do</p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-black/20 dark:text-white/20" />
+          </button>
+        </div>
+
+        <div className="p-4 pt-2 space-y-1">
           {/* ── DISPLAY SECTION ─────────────────────────── */}
           <SectionButton
             icon={<Palette className="h-4 w-4" />}
@@ -172,6 +191,26 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                       {label}
                     </OptionButton>
                   ))}
+                </div>
+                {/* Custom speed slider */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-black/30 dark:text-white/30">Custom</span>
+                    <span className="text-[10px] font-mono text-black/40 dark:text-white/40">{(props.customSpeedMs / 1000).toFixed(1)}s</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={1000}
+                    max={30000}
+                    step={500}
+                    value={props.customSpeedMs}
+                    onChange={e => props.onCustomSpeedMsChange(Number(e.target.value))}
+                    className="w-full h-1.5 rounded-full appearance-none bg-black/10 dark:bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-black dark:[&::-webkit-slider-thumb]:bg-white"
+                  />
+                  <div className="flex justify-between text-[9px] text-black/20 dark:text-white/20">
+                    <span>1s</span>
+                    <span>30s</span>
+                  </div>
                 </div>
 
                 {/* Transition */}
@@ -340,7 +379,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                 </div>
 
                 {/* Walkthrough */}
-                <ActionRow icon={<HelpCircle className="h-3.5 w-3.5" />} label="Feature Tour" onClick={props.onWalkthroughOpen} />
+
               </SectionContent>
             )}
           </AnimatePresence>

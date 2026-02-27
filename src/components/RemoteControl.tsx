@@ -15,6 +15,7 @@ interface RemoteControlPageProps {
 export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
   const [state, setState] = useState<RemoteState | null>(null);
   const [connected, setConnected] = useState(false);
+  const [customSpeedMs, setCustomSpeedMs] = useState(5000);
   const clientRef = useRef<RemoteClient | null>(null);
   const pingInterval = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -161,6 +162,30 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
                 </button>
               ))}
             </div>
+            {/* Custom speed slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/20">Custom</span>
+                <span className="text-[10px] font-mono text-white/30">{(customSpeedMs / 1000).toFixed(1)}s</span>
+              </div>
+              <input
+                type="range"
+                min={1000}
+                max={30000}
+                step={500}
+                value={customSpeedMs}
+                onChange={e => {
+                  const ms = Number(e.target.value);
+                  setCustomSpeedMs(ms);
+                  send('set-custom-speed', { ms });
+                }}
+                className="w-full h-1.5 rounded-full appearance-none bg-white/10 cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white"
+              />
+              <div className="flex justify-between text-[9px] text-white/15">
+                <span>1s</span>
+                <span>30s</span>
+              </div>
+            </div>
           </div>
 
           {/* Transition */}
@@ -234,6 +259,27 @@ export function RemoteControlPage({ roomCode }: RemoteControlPageProps) {
                   className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
                 >
                   {s}×{s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Ambience */}
+          <div className="space-y-2">
+            <p className="text-xs text-white/30 font-light">Ambience</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {[
+                { key: 'silence', label: 'Silence', icon: '🔇' },
+                { key: 'brown-noise', label: 'Brown Noise', icon: '🌊' },
+                { key: 'rain', label: 'Rain', icon: '🌧' },
+                { key: 'gallery', label: 'Gallery', icon: '🏛' },
+              ].map(a => (
+                <button
+                  key={a.key}
+                  onClick={() => send('set-ambience', { mode: a.key })}
+                  className="py-2 rounded-lg text-xs bg-white/5 text-white/40 hover:bg-white/10 active:bg-white/15 transition-colors"
+                >
+                  {a.icon} {a.label}
                 </button>
               ))}
             </div>

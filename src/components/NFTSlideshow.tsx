@@ -385,6 +385,8 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [expandedDesc, setExpandedDesc] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
   const [_showQR, _setShowQR] = useState(false);
+  const [customSpeedMs, setCustomSpeedMs] = useState(5000);
+  const [useCustomSpeed, setUseCustomSpeed] = useState(false);
   const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -501,7 +503,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   }, [nfts.length, currentIndex]);
 
   const currentNFT = nfts[currentIndex];
-  const currentSpeed = SPEED_PRESETS[speed].value;
+  const currentSpeed = useCustomSpeed ? customSpeedMs : SPEED_PRESETS[speed].value;
   const isCurrentPixelArt = usePixelArtDetection(currentNFT);
   const currentOrientation = useOrientationDetection(currentNFT);
 
@@ -559,6 +561,8 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           if ((cmd as any).enabled) { setIsWallMode(true); setWallGridSize((cmd as any).size || 2); }
           else { setIsWallMode(false); }
           break;
+        case 'set-custom-speed': setCustomSpeedMs((cmd as any).ms); setUseCustomSpeed(true); break;
+        case 'set-ambience': setAmbienceMode((cmd as any).mode); break;
         case 'ping':
           // Respond with state
           host.sendState({
@@ -1163,7 +1167,9 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           isOpen={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
           speed={speed}
-          onSpeedChange={(s) => setSpeed(s)}
+          onSpeedChange={(s) => { setSpeed(s); setUseCustomSpeed(false); }}
+          customSpeedMs={customSpeedMs}
+          onCustomSpeedMsChange={(ms) => { setCustomSpeedMs(ms); setUseCustomSpeed(true); }}
           transition={transition}
           onTransitionChange={(t) => setTransition(t)}
           bgMode={bgMode}
@@ -1377,7 +1383,9 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
         speed={speed}
-        onSpeedChange={(s) => setSpeed(s)}
+        onSpeedChange={(s) => { setSpeed(s); setUseCustomSpeed(false); }}
+          customSpeedMs={customSpeedMs}
+          onCustomSpeedMsChange={(ms) => { setCustomSpeedMs(ms); setUseCustomSpeed(true); }}
         transition={transition}
         onTransitionChange={(t) => setTransition(t)}
         bgMode={bgMode}
