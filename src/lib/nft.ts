@@ -98,6 +98,8 @@ export interface NFT {
   /** Original image dimensions if available (for pixel art detection) */
   originalWidth?: number;
   originalHeight?: number;
+  /** Which chain this NFT is on */
+  chain?: 'ethereum' | 'solana';
 }
 
 /** Detect media type from URL or mime string */
@@ -213,6 +215,7 @@ async function fetchEthereumNFTs(walletAddress: string): Promise<NFTCollection> 
       metadata: nft.metadata,
       originalWidth: w,
       originalHeight: h,
+      chain: 'ethereum' as const,
     };
   });
 
@@ -401,6 +404,7 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
         metadata: meta,
         originalWidth: imgDim?.width,
         originalHeight: imgDim?.height,
+        chain: 'solana' as const,
       };
     })
     .filter((n: NFT) => n.imageUrl || n.animationUrl);

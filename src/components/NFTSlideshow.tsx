@@ -1076,10 +1076,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                     <h1 className="text-sm md:text-base font-medium text-white">{formatAddress(walletAddress)}</h1>
                     {chain && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full border"
-                        style={chain === 'solana'
+                        style={currentNFT?.chain === 'solana'
                           ? { background: 'rgba(153,69,255,0.2)', borderColor: 'rgba(153,69,255,0.5)', color: '#C084FC' }
                           : { background: 'rgba(98,126,234,0.2)', borderColor: 'rgba(98,126,234,0.5)', color: '#93A8F4' }}>
-                        {chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
+                        {currentNFT?.chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
                       </span>
                     )}
                     {selectedCollection && (
@@ -1236,10 +1236,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                 </h1>
                 {chain && (
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full border shrink-0"
-                    style={chain === 'solana'
+                    style={currentNFT?.chain === 'solana'
                       ? { background: 'rgba(153,69,255,0.12)', borderColor: 'rgba(153,69,255,0.35)', color: '#9945FF' }
                       : { background: 'rgba(98,126,234,0.12)', borderColor: 'rgba(98,126,234,0.35)', color: '#627EEA' }}>
-                    {chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
+                    {currentNFT?.chain === 'solana' ? '◎ Solana' : 'Ξ Ethereum'}
                   </span>
                 )}
                 {selectedCollection && (
