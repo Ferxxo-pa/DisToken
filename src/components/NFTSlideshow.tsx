@@ -1,12 +1,19 @@
 import { Button } from "@/components/ui/button";
+import { AddToPlaylistButton, PlaylistManager } from "@/components/PlaylistManager";
+import { RemoteQROverlay } from "@/components/RemoteControl";
+import { Walkthrough } from "@/components/Walkthrough";
 
 import type { NFT } from "@/lib/nft";
 import { isLikelyPixelArt } from "@/lib/nft";
+import type { Playlist } from "@/lib/playlists";
+import { loadPlaylists } from "@/lib/playlists";
+import { RemoteHost, generateRoomCode, type RemoteCommand } from "@/lib/remote";
+import { getActiveSlot, loadSchedule, type ScheduleSlot } from "@/lib/schedule";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, Copy, Download, EyeOff, Filter, Info, LayoutGrid,
-  Maximize, Minimize, Moon, Music, Palette, Pause, Pin, Play,
-  Settings, Shuffle, Sun, Undo2, Volume2, VolumeX
+  ChevronLeft, ChevronRight, Copy, Download, EyeOff, Filter, HelpCircle, Info, LayoutGrid, List,
+  Maximize, Minimize, Moon, Music, Pause, Pin, Play,
+  Settings, Shuffle, Smartphone, Sun, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -349,13 +356,29 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [isMuted, setIsMuted] = useState(true);
   const [bgMode, setBgMode] = useState<BackgroundMode>('blur');
   const [customBgColor, setCustomBgColor] = useState('#1a1a2e');
-  const [isBgPickerOpen, setIsBgPickerOpen] = useState(false);
+  const [, setIsBgPickerOpen] = useState(false);
   const [expandedDesc, setExpandedDesc] = useState(false);
   const [isShuffle, setIsShuffle] = useState(false);
-  const [showQR, setShowQR] = useState(false);
+  const [_showQR, _setShowQR] = useState(false);
   const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const fullscreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fullscreenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Playlist state ───────────────────────────────────────
+  const [activePlaylist, setActivePlaylist] = useState<Playlist | null>(null);
+  const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
+
+  // ── Remote control state ─────────────────────────────────
+  const [roomCode] = useState(() => generateRoomCode());
+  const [isRemoteOpen, setIsRemoteOpen] = useState(false);
+  const remoteHostRef = useRef<RemoteHost | null>(null);
+
+  // ── Schedule state ───────────────────────────────────────
+  const [activeScheduleSlot, setActiveScheduleSlot] = useState<ScheduleSlot | null>(null);
+
+  // ── Walkthrough state ────────────────────────────────────
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [walkthroughForce, setWalkthroughForce] = useState(false);
 
   // Load saved preferences on mount
   useEffect(() => {
@@ -379,17 +402,36 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [shuffleSeed, setShuffleSeed] = useState(0);
 
   const nfts = useMemo(() => {
-    const filtered = rawNfts.filter(n => {
+    let filtered = rawNfts.filter(n => {
       if (hiddenIds.has(n.tokenId)) return false;
       if (selectedCollection && n.collectionName !== selectedCollection) return false;
       return true;
     });
+    // Playlist filter — if active, only show items in the playlist
+    if (activePlaylist) {
+      const playlistSet = new Set(activePlaylist.items);
+      filtered = filtered.filter(n => playlistSet.has(n.tokenId));
+    }
+    // Schedule filter — override collection/playlist if schedule is active
+    if (activeScheduleSlot) {
+      const slot = activeScheduleSlot;
+      if (slot.source.type === 'collection') {
+        filtered = rawNfts.filter(n => !hiddenIds.has(n.tokenId) && n.collectionName === (slot.source as { type: 'collection'; name: string }).name);
+      } else if (slot.source.type === 'playlist') {
+        const playlists = loadPlaylists(walletAddress);
+        const pl = playlists.find(p => p.id === (slot.source as any).id);
+        if (pl) {
+          const plSet = new Set(pl.items);
+          filtered = rawNfts.filter(n => !hiddenIds.has(n.tokenId) && plSet.has(n.tokenId));
+        }
+      }
+    }
     const ordered = [
       ...filtered.filter(n => pinnedIds.has(n.tokenId)),
       ...filtered.filter(n => !pinnedIds.has(n.tokenId)),
     ];
     return isShuffle ? shuffleArray(ordered) : ordered;
-  }, [rawNfts, hiddenIds, pinnedIds, selectedCollection, isShuffle, shuffleSeed]);
+  }, [rawNfts, hiddenIds, pinnedIds, selectedCollection, isShuffle, shuffleSeed, activePlaylist, activeScheduleSlot, walletAddress]);
 
   const collectionStats = useMemo(() => {
     const colSet = new Set(nfts.map(n => n.collectionName));
@@ -437,6 +479,72 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   useEffect(() => {
     savePrefs(walletAddress, { speed, transition, bgMode, customBgColor, showMetadata, isShuffle });
   }, [walletAddress, speed, transition, bgMode, customBgColor, showMetadata, isShuffle]);
+
+  // ── Remote host ──────────────────────────────────────────
+  useEffect(() => {
+    const host = new RemoteHost(roomCode, (cmd: RemoteCommand) => {
+      switch (cmd.type) {
+        case 'next': goToNext(); break;
+        case 'prev': goToPrevious(); break;
+        case 'play': setIsPlaying(true); break;
+        case 'pause': setIsPlaying(false); break;
+        case 'toggle-play': setIsPlaying(p => !p); break;
+        case 'toggle-info': setShowMetadata(p => !p); break;
+        case 'toggle-shuffle': setIsShuffle(p => !p); setShuffleSeed(s => s + 1); setCurrentIndex(0); break;
+        case 'toggle-fullscreen': toggleFullscreen(); break;
+        case 'go-to': if (cmd.index >= 0 && cmd.index < nfts.length) setCurrentIndex(cmd.index); break;
+        case 'set-speed': if (cmd.speed in SPEED_PRESETS) setSpeed(cmd.speed as keyof typeof SPEED_PRESETS); break;
+        case 'ping':
+          // Respond with state
+          host.sendState({
+            currentIndex,
+            total: nfts.length,
+            isPlaying,
+            currentName: currentNFT?.name || '',
+            currentCollection: currentNFT?.collectionName || '',
+            currentImage: currentNFT?.imageUrl || '',
+            speed,
+            walletAddress,
+          });
+          break;
+      }
+    });
+    remoteHostRef.current = host;
+    return () => host.destroy();
+  }, [roomCode]);
+
+  // Send state updates to remote whenever key state changes
+  useEffect(() => {
+    remoteHostRef.current?.sendState({
+      currentIndex,
+      total: nfts.length,
+      isPlaying,
+      currentName: currentNFT?.name || '',
+      currentCollection: currentNFT?.collectionName || '',
+      currentImage: currentNFT?.imageUrl || '',
+      speed,
+      walletAddress,
+    });
+  }, [currentIndex, isPlaying, nfts.length, speed, currentNFT?.name]);
+
+  // ── Schedule polling ─────────────────────────────────────
+  useEffect(() => {
+    const schedule = loadSchedule(walletAddress);
+    if (!schedule.enabled) { setActiveScheduleSlot(null); return; }
+    const check = () => {
+      const slot = getActiveSlot(schedule);
+      setActiveScheduleSlot(slot);
+    };
+    check();
+    const interval = setInterval(check, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [walletAddress]);
+
+  // ── Walkthrough trigger on first load ────────────────────
+  useEffect(() => {
+    const seen = localStorage.getItem('distoken:walkthrough-seen') === 'true';
+    if (!seen) setShowWalkthrough(true);
+  }, []);
 
   const formatAddress = (address: string) => {
     if (address.includes('.eth') || address.includes('.sol')) return address;
@@ -579,7 +687,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   // Cursor hide in fullscreen/kiosk
   useEffect(() => {
     if (!kioskMode && !isFullscreen) return;
-    let timeout: NodeJS.Timeout;
+    let timeout: ReturnType<typeof setTimeout>;
     const hide = () => { document.body.style.cursor = 'none'; };
     const show = () => { document.body.style.cursor = 'auto'; clearTimeout(timeout); timeout = setTimeout(hide, 3000); };
     show();
@@ -729,6 +837,14 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           className={`${btn} h-9 w-9 rounded-full`} title="Theme (D)">
           {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsPlaylistOpen(true)}
+          className={`${btn} h-9 w-9 rounded-full ${activePlaylist ? 'ring-1 ring-white/40' : ''}`} title="Playlists">
+          <List className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => setIsRemoteOpen(true)}
+          className={`${btn} h-9 w-9 rounded-full`} title="Phone Remote">
+          <Smartphone className="h-4 w-4" />
+        </Button>
         <Button variant="outline" size="icon" onClick={copyShareUrl}
           className={`${btn} h-9 w-9 rounded-full ${copied ? 'ring-1 ring-green-400' : ''}`} title="Copy share link">
           <Copy className={`h-4 w-4 ${copied ? 'text-green-400' : ''}`} />
@@ -736,6 +852,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         <Button variant="outline" size="icon" onClick={downloadCurrentNFT}
           className={`${btn} h-9 w-9 rounded-full`} title="Download current NFT">
           <Download className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="icon" onClick={() => { setWalkthroughForce(true); setShowWalkthrough(true); }}
+          className={`${btn} h-9 w-9 rounded-full`} title="Feature tour">
+          <HelpCircle className="h-4 w-4" />
         </Button>
         <Button variant="outline" size="icon" onClick={toggleFullscreen} className={`${btn} h-9 w-9 rounded-full`}>
           {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
@@ -845,6 +965,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                   <button onClick={() => togglePin(nft.tokenId)} className="w-5 h-5 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/90">
                     <Pin className={`h-2.5 w-2.5 ${pinnedIds.has(nft.tokenId) ? 'text-yellow-400' : 'text-white'}`} />
                   </button>
+                  <AddToPlaylistButton walletAddress={walletAddress} tokenId={nft.tokenId} className="scale-[0.625] origin-top-right -mr-1.5 -mt-1.5" />
                   <button onClick={() => toggleHide(nft.tokenId)} className="w-5 h-5 rounded-full bg-black/60 flex items-center justify-center hover:bg-red-600">
                     <EyeOff className="h-2.5 w-2.5 text-white" />
                   </button>
@@ -921,6 +1042,12 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                     {selectedCollection && (
                       <span className="text-xs px-2 py-0.5 rounded-full border border-white/30 text-white/80 bg-white/10">{selectedCollection}</span>
                     )}
+                    {activePlaylist && (
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-purple-400/50 text-purple-200 bg-purple-500/20">📋 {activePlaylist.name}</span>
+                    )}
+                    {activeScheduleSlot && (
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-amber-400/50 text-amber-200 bg-amber-500/20">🕐 {activeScheduleSlot.label}</span>
+                    )}
                   </div>
                   <Button onClick={() => setIsFullscreen(false)} variant="outline" size="sm"
                     className="border-white/30 bg-white/10 hover:bg-white/20 text-white backdrop-blur-sm font-light">
@@ -967,6 +1094,26 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
           )}
         </div>
         {isGalleryOpen && renderGallery()}
+        <PlaylistManager
+          walletAddress={walletAddress}
+          nfts={rawNfts}
+          onSelectPlaylist={(pl) => { setActivePlaylist(pl); setCurrentIndex(0); }}
+          activePlaylistId={activePlaylist?.id ?? null}
+          isOpen={isPlaylistOpen}
+          onClose={() => setIsPlaylistOpen(false)}
+        />
+        <RemoteQROverlay
+          roomCode={roomCode}
+          baseUrl={window.location.origin}
+          isOpen={isRemoteOpen}
+          onClose={() => setIsRemoteOpen(false)}
+        />
+        {showWalkthrough && (
+          <Walkthrough
+            force={walkthroughForce}
+            onComplete={() => { setShowWalkthrough(false); setWalkthroughForce(false); }}
+          />
+        )}
       </>
     );
   }
@@ -1000,6 +1147,17 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                   <span className="text-xs px-2 py-0.5 rounded-full border border-border bg-muted text-muted-foreground shrink-0">
                     {selectedCollection}
                     <button onClick={() => setSelectedCollection(null)} className="ml-1.5 hover:text-foreground">×</button>
+                  </span>
+                )}
+                {activePlaylist && (
+                  <span className="text-xs px-2 py-0.5 rounded-full border border-purple-300 bg-purple-50 text-purple-700 dark:border-purple-700 dark:bg-purple-900/30 dark:text-purple-300 shrink-0">
+                    📋 {activePlaylist.name}
+                    <button onClick={() => { setActivePlaylist(null); setCurrentIndex(0); }} className="ml-1.5 hover:text-purple-900 dark:hover:text-purple-100">×</button>
+                  </span>
+                )}
+                {activeScheduleSlot && (
+                  <span className="text-xs px-2 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-300 shrink-0">
+                    🕐 {activeScheduleSlot.label}
                   </span>
                 )}
               </div>
@@ -1074,6 +1232,26 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         </div>
       </div>
       {isGalleryOpen && renderGallery()}
+      <PlaylistManager
+        walletAddress={walletAddress}
+        nfts={rawNfts}
+        onSelectPlaylist={(pl) => { setActivePlaylist(pl); setCurrentIndex(0); }}
+        activePlaylistId={activePlaylist?.id ?? null}
+        isOpen={isPlaylistOpen}
+        onClose={() => setIsPlaylistOpen(false)}
+      />
+      <RemoteQROverlay
+        roomCode={roomCode}
+        baseUrl={window.location.origin}
+        isOpen={isRemoteOpen}
+        onClose={() => setIsRemoteOpen(false)}
+      />
+      {showWalkthrough && (
+        <Walkthrough
+          force={walkthroughForce}
+          onComplete={() => { setShowWalkthrough(false); setWalkthroughForce(false); }}
+        />
+      )}
     </>
   );
 }

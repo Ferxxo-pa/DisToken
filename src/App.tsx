@@ -5,6 +5,7 @@ import { Route, Switch, useSearch } from "wouter";
 
 import Home from "./pages/Home";
 import Setup from "./pages/Setup";
+import RemotePage from "./pages/Remote";
 
 function WalletRoute({ params }: { params: { wallet: string } }) {
   const search = useSearch();
@@ -20,11 +21,16 @@ function HomeRoute() {
   return <Home kioskMode={kiosk} />;
 }
 
+function RemoteRoute({ params }: { params: { code: string } }) {
+  return <RemotePage roomCode={params.code} />;
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/"               component={HomeRoute} />
       <Route path="/setup"          component={Setup} />
+      <Route path="/remote/:code"   component={RemoteRoute} />
       {/* Direct wallet URL: /0x... or /ezven.eth or /solana-address */}
       <Route path="/:wallet"        component={WalletRoute} />
       <Route path="/404"            component={NotFound} />
