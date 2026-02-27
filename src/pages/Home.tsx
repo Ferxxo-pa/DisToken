@@ -334,15 +334,26 @@ export default function Home({ initialWallet, kioskMode = false }: HomeProps = {
               transitionDelay: '400ms',
             }}
           >
-            <button
-              onClick={handleExampleWallet}
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors font-light inline-flex items-center gap-2 group"
-            >
-              <Sparkles className="w-3.5 h-3.5 transition-all" />
-              <span className="border-b border-muted-foreground/30 group-hover:border-foreground/50 transition-colors">
-                Try example wallet
-              </span>
-            </button>
+            <div className="flex items-center gap-4 justify-center flex-wrap">
+              <button
+                onClick={handleExampleWallet}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors font-light inline-flex items-center gap-2 group"
+              >
+                <Sparkles className="w-3.5 h-3.5 transition-all" />
+                <span className="border-b border-muted-foreground/30 group-hover:border-foreground/50 transition-colors">
+                  Try example wallet
+                </span>
+              </button>
+              <span className="text-muted-foreground/30">·</span>
+              <button
+                onClick={() => navigate('/setup')}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors font-light inline-flex items-center gap-2 group"
+              >
+                <span className="border-b border-muted-foreground/30 group-hover:border-foreground/50 transition-colors">
+                  📺 Display on a TV
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </main>

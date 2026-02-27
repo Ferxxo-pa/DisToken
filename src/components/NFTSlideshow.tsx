@@ -157,6 +157,32 @@ function usePixelArtDetection(nft: NFT | undefined): boolean {
   return isPixel;
 }
 
+// ── Orientation detection ───────────────────────────────────
+
+type Orientation = 'landscape' | 'portrait' | 'square' | 'unknown';
+
+function useOrientationDetection(nft: NFT | undefined): Orientation {
+  const [orientation, setOrientation] = useState<Orientation>('unknown');
+  useEffect(() => {
+    if (!nft) { setOrientation('unknown'); return; }
+    if (nft.originalWidth && nft.originalHeight) {
+      const ratio = nft.originalWidth / nft.originalHeight;
+      setOrientation(ratio > 1.1 ? 'landscape' : ratio < 0.9 ? 'portrait' : 'square');
+      return;
+    }
+    if (nft.imageUrl && nft.mediaType === 'image') {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = img.naturalWidth / img.naturalHeight;
+        setOrientation(ratio > 1.1 ? 'landscape' : ratio < 0.9 ? 'portrait' : 'square');
+      };
+      img.onerror = () => setOrientation('unknown');
+      img.src = nft.imageUrl;
+    }
+  }, [nft?.tokenId, nft?.imageUrl]);
+  return orientation;
+}
+
 // ── Image preloader (preloads next N images) ────────────────
 
 function useImagePreloader(nfts: NFT[], currentIndex: number, ahead: number = 3) {
@@ -206,6 +232,25 @@ function NFTMedia({
           <button onClick={onToggleMute} className="text-white/80 hover:text-white transition-colors">
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  // HTML / Generative art NFT — render in sandboxed iframe
+  if (nft.mediaType === 'html' && nft.animationUrl) {
+    return (
+      <div className={`relative ${className || ''}`} style={{ ...maxStyle, width: maxStyle.maxWidth, height: maxStyle.maxHeight }}>
+        <iframe
+          src={nft.animationUrl}
+          title={nft.name || 'Generative Art'}
+          sandbox="allow-scripts allow-same-origin"
+          className="w-full h-full rounded-lg"
+          style={{ border: 'none', minWidth: '60vw', minHeight: '60vh', ...maxStyle }}
+          allow="accelerometer; autoplay"
+        />
+        <div className="absolute top-2 left-2 text-xs px-2 py-1 rounded bg-black/50 backdrop-blur-sm text-white/80 border border-white/10">
+          ⟨/⟩ Live Generative
         </div>
       </div>
     );
@@ -359,6 +404,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const currentNFT = nfts[currentIndex];
   const currentSpeed = SPEED_PRESETS[speed].value;
   const isCurrentPixelArt = usePixelArtDetection(currentNFT);
+  const currentOrientation = useOrientationDetection(currentNFT);
 
   // Preload upcoming images
   useImagePreloader(nfts, currentIndex, 3);
@@ -718,6 +764,12 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             )}
             {isCurrentPixelArt && (
               <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>▦ Pixel Art</span>
+            )}
+            {currentNFT.mediaType === 'html' && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>⟨/⟩ Generative</span>
+            )}
+            {currentOrientation === 'portrait' && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>↕ Portrait</span>
             )}
           </div>
           {currentNFT.description && (
