@@ -4,9 +4,9 @@ import type { NFT } from "@/lib/nft";
 import { isLikelyPixelArt } from "@/lib/nft";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronLeft, ChevronRight, EyeOff, Filter, Info, LayoutGrid,
-  Maximize, Minimize, Moon, Music, Palette, Pause, Pin, Play, Settings,
-  Sun, Undo2, Volume2, VolumeX
+  ChevronLeft, ChevronRight, Copy, EyeOff, Filter, Info, LayoutGrid,
+  Maximize, Minimize, Moon, Music, Palette, Pause, Pin, Play, QrCode,
+  Settings, Shuffle, Sun, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,6 +21,39 @@ function loadSet(key: string): Set<string> {
 }
 function saveSet(key: string, set: Set<string>) {
   localStorage.setItem(key, JSON.stringify([...set]));
+}
+
+// ── Per-wallet display preferences ──────────────────────────
+
+interface DisplayPrefs {
+  speed?: string;
+  transition?: string;
+  bgMode?: string;
+  customBgColor?: string;
+  showMetadata?: boolean;
+  isShuffle?: boolean;
+}
+
+function prefKey(wallet: string) { return `distoken:prefs:${wallet.toLowerCase()}`; }
+
+function loadPrefs(wallet: string): DisplayPrefs {
+  try { return JSON.parse(localStorage.getItem(prefKey(wallet)) ?? '{}'); }
+  catch { return {}; }
+}
+
+function savePrefs(wallet: string, prefs: DisplayPrefs) {
+  localStorage.setItem(prefKey(wallet), JSON.stringify(prefs));
+}
+
+// ── Shuffle utility ─────────────────────────────────────────
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 // ── Color extraction ────────────────────────────────────────
@@ -272,8 +305,22 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [customBgColor, setCustomBgColor] = useState('#1a1a2e');
   const [isBgPickerOpen, setIsBgPickerOpen] = useState(false);
   const [expandedDesc, setExpandedDesc] = useState(false);
+  const [isShuffle, setIsShuffle] = useState(false);
+  const [showQR, setShowQR] = useState(false);
+  const [copied, setCopied] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Load saved preferences on mount
+  useEffect(() => {
+    const prefs = loadPrefs(walletAddress);
+    if (prefs.speed) setSpeed(prefs.speed as keyof typeof SPEED_PRESETS);
+    if (prefs.transition) setTransition(prefs.transition as TransitionType);
+    if (prefs.bgMode) setBgMode(prefs.bgMode as BackgroundMode);
+    if (prefs.customBgColor) setCustomBgColor(prefs.customBgColor);
+    if (prefs.showMetadata !== undefined) setShowMetadata(prefs.showMetadata);
+    if (prefs.isShuffle) setIsShuffle(prefs.isShuffle);
+  }, [walletAddress]);
 
   // ── Derived data ─────────────────────────────────────────
   const collections = useMemo(() => {
@@ -282,17 +329,21 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     return [...names].sort();
   }, [rawNfts]);
 
+  // Track shuffle seed to re-shuffle when toggled
+  const [shuffleSeed, setShuffleSeed] = useState(0);
+
   const nfts = useMemo(() => {
     const filtered = rawNfts.filter(n => {
       if (hiddenIds.has(n.tokenId)) return false;
       if (selectedCollection && n.collectionName !== selectedCollection) return false;
       return true;
     });
-    return [
+    const ordered = [
       ...filtered.filter(n => pinnedIds.has(n.tokenId)),
       ...filtered.filter(n => !pinnedIds.has(n.tokenId)),
     ];
-  }, [rawNfts, hiddenIds, pinnedIds, selectedCollection]);
+    return isShuffle ? shuffleArray(ordered) : ordered;
+  }, [rawNfts, hiddenIds, pinnedIds, selectedCollection, isShuffle, shuffleSeed]);
 
   const collectionStats = useMemo(() => {
     const colSet = new Set(nfts.map(n => n.collectionName));
@@ -321,6 +372,11 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
   }, [isDarkMode]);
+
+  // Save preferences on change
+  useEffect(() => {
+    savePrefs(walletAddress, { speed, transition, bgMode, customBgColor, showMetadata, isShuffle });
+  }, [walletAddress, speed, transition, bgMode, customBgColor, showMetadata, isShuffle]);
 
   const formatAddress = (address: string) => {
     if (address.includes('.eth') || address.includes('.sol')) return address;
@@ -368,6 +424,18 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   }, []);
   const toggleMetadata = useCallback(() => { setShowMetadata(p => !p); setExpandedDesc(false); }, []);
   const toggleMute = useCallback(() => setIsMuted(p => !p), []);
+  const toggleShuffle = useCallback(() => {
+    setIsShuffle(p => !p);
+    setShuffleSeed(s => s + 1);
+    setCurrentIndex(0);
+  }, []);
+  const copyShareUrl = useCallback(() => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, []);
 
   const handleVideoEnd = useCallback(() => {
     if (isPlaying && nfts.length > 1) goToNext();
@@ -418,6 +486,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
       if (e.key === "i" || e.key === "I") toggleMetadata();
       if (e.key === "m" || e.key === "M") toggleMute();
       if (e.key === "d" || e.key === "D") setIsDarkMode(p => !p);
+      if (e.key === "s" || e.key === "S") { setIsShuffle(p => !p); setShuffleSeed(s => s + 1); setCurrentIndex(0); }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -540,6 +609,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         <Button variant="outline" size="icon" onClick={togglePlay} className={`${btn} h-9 w-9 rounded-full`}>
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
+        <Button variant="outline" size="icon" onClick={toggleShuffle}
+          className={`${btn} h-9 w-9 rounded-full ${isShuffle ? 'ring-1 ring-white/40' : ''}`} title="Shuffle (S)">
+          <Shuffle className="h-4 w-4" />
+        </Button>
         <Button variant="outline" size="icon" onClick={toggleMetadata}
           className={`${btn} h-9 w-9 rounded-full ${showMetadata ? 'ring-1 ring-white/40' : ''}`} title="Info (I)">
           <Info className="h-4 w-4" />
@@ -571,6 +644,10 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         <Button variant="outline" size="icon" onClick={() => setIsDarkMode(!isDarkMode)}
           className={`${btn} h-9 w-9 rounded-full`} title="Theme (D)">
           {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
+        <Button variant="outline" size="icon" onClick={copyShareUrl}
+          className={`${btn} h-9 w-9 rounded-full ${copied ? 'ring-1 ring-green-400' : ''}`} title="Copy share link">
+          <Copy className={`h-4 w-4 ${copied ? 'text-green-400' : ''}`} />
         </Button>
         <Button variant="outline" size="icon" onClick={toggleFullscreen} className={`${btn} h-9 w-9 rounded-full`}>
           {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}

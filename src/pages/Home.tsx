@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NFTSlideshow } from "@/components/NFTSlideshow";
-import { fetchNFTsForWallet, detectChain, type NFTCollection } from "@/lib/nft";
+import { fetchNFTsForWallet, fetchMultiWallet, detectChain, type NFTCollection } from "@/lib/nft";
 import { Sparkles } from "lucide-react";
+import { Waitlist } from "@/components/Waitlist";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
@@ -96,8 +97,14 @@ export default function Home({ initialWallet, kioskMode = false }: HomeProps = {
     if (activeWallet) {
       setIsLoading(true);
       setError(null);
+
+      // Support comma-separated multi-wallet
+      const wallets = activeWallet.split(',').map(w => w.trim()).filter(Boolean);
+      const fetcher = wallets.length > 1
+        ? fetchMultiWallet(wallets)
+        : fetchNFTsForWallet(wallets[0]);
       
-      fetchNFTsForWallet(activeWallet)
+      fetcher
         .then((data) => {
           setNftData(data);
           setIsLoading(false);
@@ -115,10 +122,14 @@ export default function Home({ initialWallet, kioskMode = false }: HomeProps = {
       setValidationError("Please enter a wallet address");
       return false;
     }
-    const chain = detectChain(trimmed);
-    if (chain === 'unknown') {
-      setValidationError("Enter an Ethereum address (0x… / .eth) or Solana address / .sol domain");
-      return false;
+    // Support comma-separated multi-wallet
+    const wallets = trimmed.split(',').map(w => w.trim()).filter(Boolean);
+    for (const w of wallets) {
+      const chain = detectChain(w);
+      if (chain === 'unknown') {
+        setValidationError(`Invalid address: "${w.slice(0, 20)}…" — enter Ethereum (0x… / .eth) or Solana address / .sol`);
+        return false;
+      }
     }
     setValidationError("");
     return true;
@@ -284,7 +295,7 @@ export default function Home({ initialWallet, kioskMode = false }: HomeProps = {
             <div className="relative">
               <Input
                 type="text"
-                placeholder="0x… / vitalik.eth / Solana address / .sol"
+                placeholder="0x… / vitalik.eth / Solana address / .sol (comma-separate for multi-wallet)"
                 value={walletAddress}
                 onChange={(e) => {
                   setWalletAddress(e.target.value);
@@ -335,6 +346,13 @@ export default function Home({ initialWallet, kioskMode = false }: HomeProps = {
           </div>
         </div>
       </main>
+
+      {/* Waitlist */}
+      <div className="container">
+        <div className="border-t border-border/30">
+          <Waitlist />
+        </div>
+      </div>
 
       {/* Footer */}
       <footer className="border-t border-border/30 py-6">

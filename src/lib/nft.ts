@@ -121,6 +121,25 @@ export interface NFTCollection {
   totalCount: number;
 }
 
+/** Fetch NFTs from multiple wallets and merge into a single collection */
+export async function fetchMultiWallet(addresses: string[]): Promise<NFTCollection> {
+  const results = await Promise.allSettled(addresses.map(a => fetchNFTsForWallet(a)));
+  const allNfts: NFT[] = [];
+  let chain: 'ethereum' | 'solana' = 'ethereum';
+  for (const r of results) {
+    if (r.status === 'fulfilled') {
+      allNfts.push(...r.value.nfts);
+      chain = r.value.chain; // Last successful chain wins (fine for display)
+    }
+  }
+  return {
+    owner: addresses.join(', '),
+    chain,
+    nfts: allNfts,
+    totalCount: allNfts.length,
+  };
+}
+
 // ── Chain Detection ──────────────────────────────────────────
 
 export type Chain = 'ethereum' | 'solana' | 'unknown';
