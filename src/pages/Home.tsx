@@ -89,6 +89,9 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
   const [error, setError] = useState<string | null>(null);
 
   const [, navigate] = useLocation();
+  const [showProWaitlist, setShowProWaitlist] = useState(false);
+  const [proEmail, setProEmail] = useState('');
+  const [proSubmitted, setProSubmitted] = useState(false);
 
   useEffect(() => {
     setIsPageLoaded(true);
@@ -143,6 +146,31 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
       : address.trim();
     setActiveWallet(normalized);
     navigate(`/${encodeURIComponent(normalized)}`);
+  };
+
+  const handleProWaitlist = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!proEmail.trim()) return;
+    const formId = import.meta.env.VITE_FORMSPREE_ID;
+    if (formId) {
+      fetch(`https://formspree.io/f/${formId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: proEmail, type: 'pro-waitlist' }),
+      }).catch(() => {});
+    }
+    // Also store locally
+    try {
+      const existing = JSON.parse(localStorage.getItem('distoken:pro-waitlist') ?? '[]');
+      existing.push({ email: proEmail, at: Date.now() });
+      localStorage.setItem('distoken:pro-waitlist', JSON.stringify(existing));
+    } catch {}
+    setProSubmitted(true);
+    setTimeout(() => {
+      setShowProWaitlist(false);
+      setProSubmitted(false);
+      setProEmail('');
+    }, 2000);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -360,12 +388,87 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
         </div>
       </main>
 
-      {/* Waitlist */}
+      {/* Pro Features CTA */}
       <div className="container">
-        <div className="border-t border-border/30">
-          <Waitlist />
+        <div className="border-t border-border/30 py-8">
+          <button
+            onClick={() => setShowProWaitlist(true)}
+            className="w-full text-center group cursor-pointer"
+          >
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/50 hover:border-foreground/30 transition-all hover:bg-accent/50">
+              <span className="text-xs font-medium tracking-wider uppercase text-muted-foreground group-hover:text-foreground transition-colors">
+                ✦ Pro Features
+              </span>
+            </div>
+          </button>
         </div>
       </div>
+
+      {/* Pro Waitlist Modal */}
+      {showProWaitlist && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowProWaitlist(false)}>
+          <div
+            className="bg-background border border-border/30 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden"
+            onClick={e => e.stopPropagation()}
+            style={{ animation: 'fadeInScale 0.2s ease-out' }}
+          >
+            <div className="p-8 space-y-6">
+              <div className="text-center space-y-3">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-foreground/5 border border-border/50">
+                  <span className="text-xs font-medium tracking-wider uppercase">Coming Soon</span>
+                </div>
+                <h2 className="text-2xl font-semibold tracking-tight">DisToken Pro</h2>
+                <p className="text-sm text-muted-foreground font-light leading-relaxed">
+                  Offline event packs, playlist scheduling, multi-screen management, advanced analytics, and more.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  '📦 Offline event packs',
+                  '📅 Playlist scheduling',
+                  '🖥️ Multi-screen sync',
+                  '📊 Visitor analytics',
+                  '🎨 Custom branding',
+                  '🔗 API access',
+                ].map(feature => (
+                  <div key={feature} className="flex items-center gap-1.5 text-muted-foreground px-2 py-1.5 rounded-lg bg-accent/30">
+                    {feature}
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={handleProWaitlist} className="space-y-3">
+                <input
+                  type="email"
+                  value={proEmail}
+                  onChange={e => setProEmail(e.target.value)}
+                  placeholder="your@email.com"
+                  required
+                  className="w-full h-12 px-4 text-center text-sm rounded-lg border border-border bg-card focus:border-foreground focus:outline-none transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={proSubmitted}
+                  className={`w-full h-12 rounded-lg text-sm font-medium tracking-wide transition-all ${
+                    proSubmitted
+                      ? 'bg-green-500/10 text-green-600 border border-green-500/30'
+                      : 'bg-foreground text-background hover:bg-foreground/90'
+                  }`}
+                >
+                  {proSubmitted ? '✓ You\'re on the list' : 'Get Early Access'}
+                </button>
+              </form>
+            </div>
+
+            <div className="border-t border-border/30 px-8 py-4">
+              <p className="text-xs text-muted-foreground/50 text-center font-light">
+                Free version stays free forever. Pro adds power features for galleries and collectors.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-border/30 py-6">
