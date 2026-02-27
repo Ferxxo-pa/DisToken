@@ -821,11 +821,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             Floor: {priceData.price} {priceData.symbol}
           </div>
         )}
-        {isTouchDevice && (
-          <div className="absolute top-2 right-2 z-10 text-white/40 text-xs bg-black/40 rounded-full px-2 py-0.5 pointer-events-none">
-            ← swipe →
-          </div>
-        )}
+
       </div>
     );
   };
