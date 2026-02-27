@@ -5,7 +5,7 @@ import { isLikelyPixelArt } from "@/lib/nft";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronLeft, ChevronRight, EyeOff, Filter, Info, LayoutGrid,
-  Maximize, Minimize, Moon, Music, Pause, Pin, Play, Settings,
+  Maximize, Minimize, Moon, Music, Palette, Pause, Pin, Play, Settings,
   Sun, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -62,6 +62,15 @@ function extractDominantColor(imgSrc: string): Promise<string> {
 // ── Transition variants ─────────────────────────────────────
 
 type TransitionType = 'fade' | 'slide' | 'zoom' | 'crossfade';
+type BackgroundMode = 'blur' | 'dark' | 'light' | 'match' | 'custom';
+
+const BG_PRESETS: Record<BackgroundMode, { label: string; desc: string }> = {
+  blur: { label: 'Blur Fill', desc: 'Blurred artwork as ambient background' },
+  dark: { label: 'Dark', desc: 'Pure black background' },
+  light: { label: 'Light', desc: 'Clean white gallery wall' },
+  match: { label: 'Match Color', desc: 'Solid color sampled from artwork' },
+  custom: { label: 'Custom', desc: 'Choose your own color' },
+};
 
 const TRANSITIONS: Record<TransitionType, {
   initial: any; animate: any; exit: any; transition?: any;
@@ -198,7 +207,14 @@ function NFTMedia({
 
 // ── Blurred background ──────────────────────────────────────
 
-function BlurredBackground({ src, fallbackColor }: { src?: string; fallbackColor: string }) {
+function BlurredBackground({ src, fallbackColor, mode, customColor }: {
+  src?: string; fallbackColor: string; mode: BackgroundMode; customColor?: string;
+}) {
+  if (mode === 'dark') return <div className="absolute inset-0 bg-black" />;
+  if (mode === 'light') return <div className="absolute inset-0 bg-white" />;
+  if (mode === 'custom') return <div className="absolute inset-0" style={{ backgroundColor: customColor || '#1a1a2e' }} />;
+  if (mode === 'match') return <div className="absolute inset-0" style={{ backgroundColor: fallbackColor }} />;
+  // Default: blur
   return (
     <>
       <div className="absolute inset-0" style={{ backgroundColor: fallbackColor }} />
@@ -252,6 +268,11 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [bgColor, setBgColor] = useState('rgba(0,0,0,0.9)');
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [bgMode, setBgMode] = useState<BackgroundMode>('blur');
+  const [customBgColor, setCustomBgColor] = useState('#1a1a2e');
+  const [isBgPickerOpen, setIsBgPickerOpen] = useState(false);
+  const [expandedDesc, setExpandedDesc] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // ── Derived data ─────────────────────────────────────────
@@ -293,6 +314,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   // Extract bg color
   useEffect(() => {
     if (currentNFT?.imageUrl) extractDominantColor(currentNFT.imageUrl).then(setBgColor);
+    setExpandedDesc(false);
   }, [currentNFT?.imageUrl]);
 
   // Dark mode class on body
@@ -329,8 +351,22 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const goToNext = useCallback(() => setCurrentIndex(prev => (prev + 1) % nfts.length), [nfts.length]);
   const goToPrevious = useCallback(() => setCurrentIndex(prev => (prev - 1 + nfts.length) % nfts.length), [nfts.length]);
   const togglePlay = useCallback(() => setIsPlaying(p => !p), []);
-  const toggleFullscreen = useCallback(() => setIsFullscreen(p => !p), []);
-  const toggleMetadata = useCallback(() => setShowMetadata(p => !p), []);
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen(p => {
+      const next = !p;
+      // Use browser Fullscreen API for true device fullscreen
+      if (next) {
+        const el = containerRef.current || document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+        else if ((el as any).webkitRequestFullscreen) (el as any).webkitRequestFullscreen();
+      } else {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        else if ((document as any).webkitFullscreenElement) (document as any).webkitExitFullscreen();
+      }
+      return next;
+    });
+  }, []);
+  const toggleMetadata = useCallback(() => { setShowMetadata(p => !p); setExpandedDesc(false); }, []);
   const toggleMute = useCallback(() => setIsMuted(p => !p), []);
 
   const handleVideoEnd = useCallback(() => {
@@ -345,20 +381,27 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     return () => clearInterval(timer);
   }, [isPlaying, nfts.length, currentSpeed, currentNFT?.mediaType]);
 
-  // Escape key
+  // Sync with browser fullscreen state (e.g. user presses Esc natively)
   useEffect(() => {
-    if (!isFullscreen) return;
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsFullscreen(false); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [isFullscreen]);
+    const h = () => {
+      if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', h);
+    document.addEventListener('webkitfullscreenchange', h);
+    return () => {
+      document.removeEventListener('fullscreenchange', h);
+      document.removeEventListener('webkitfullscreenchange', h);
+    };
+  }, []);
 
   // Close dropdowns on outside click
   useEffect(() => {
     if (!isSettingsOpen && !isFilterOpen) return;
     const h = (e: MouseEvent) => {
       const t = e.target as HTMLElement;
-      if (isSettingsOpen && !t.closest('[data-settings-button]') && !t.closest('[data-settings-dropdown]')) setIsSettingsOpen(false);
+      if (isSettingsOpen && !t.closest('[data-settings-button]') && !t.closest('[data-settings-dropdown]')) { setIsSettingsOpen(false); setIsBgPickerOpen(false); }
       if (isFilterOpen && !t.closest('[data-filter-button]') && !t.closest('[data-filter-dropdown]')) setIsFilterOpen(false);
     };
     const timer = setTimeout(() => document.addEventListener('mousedown', h), 100);
@@ -401,7 +444,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   // ── Shared UI pieces ─────────────────────────────────────
 
   const renderSettingsDropdown = () => (
-    <div className="absolute bottom-full right-0 mb-2 w-64 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50" data-settings-dropdown>
+    <div className="absolute bottom-full right-0 mb-2 w-72 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-[70vh] overflow-auto" data-settings-dropdown>
       <div className="space-y-1">
         <p className="text-xs font-semibold text-black/60 px-2 py-1">Speed</p>
         {Object.entries(SPEED_PRESETS).map(([key, { label }]) => (
@@ -410,6 +453,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             {label}
           </button>
         ))}
+
         <div className="border-t border-black/10 mt-1 pt-1">
           <p className="text-xs font-semibold text-black/60 px-2 py-1">Transition</p>
           {(['fade', 'slide', 'zoom', 'crossfade'] as TransitionType[]).map(t => (
@@ -419,6 +463,28 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             </button>
           ))}
         </div>
+
+        <div className="border-t border-black/10 mt-1 pt-1">
+          <p className="text-xs font-semibold text-black/60 px-2 py-1">Background</p>
+          {(Object.entries(BG_PRESETS) as [BackgroundMode, { label: string; desc: string }][]).map(([key, { label, desc }]) => (
+            <button key={key} onClick={() => {
+              setBgMode(key);
+              if (key === 'custom') { setIsBgPickerOpen(true); } else { setIsSettingsOpen(false); }
+            }}
+              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${bgMode === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
+              <span>{label}</span>
+              <span className={`block text-xs ${bgMode === key ? 'text-white/60' : 'text-black/40'}`}>{desc}</span>
+            </button>
+          ))}
+          {bgMode === 'custom' && (
+            <div className="flex items-center gap-2 px-2 py-1.5">
+              <input type="color" value={customBgColor} onChange={e => setCustomBgColor(e.target.value)}
+                className="w-8 h-8 rounded cursor-pointer border-0" />
+              <span className="text-xs text-black/60">{customBgColor}</span>
+            </div>
+          )}
+        </div>
+
         {hiddenIds.size > 0 && (
           <div className="border-t border-black/10 mt-1 pt-1">
             <button onClick={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); setIsSettingsOpen(false); }}
@@ -514,31 +580,37 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   };
 
   const renderMetadata = (dark: boolean) => {
-    if (!showMetadata) return null;
+    // Always render the container at fixed height to prevent layout shift
     return (
-      <div className="flex-1 space-y-1 min-w-0">
-        <h2 className={`text-xl md:text-2xl font-medium tracking-tight truncate ${dark ? 'text-white' : ''}`}>
-          {currentNFT.name || `#${currentNFT.tokenId}`}
-        </h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className={`text-sm font-light ${dark ? 'text-white/70' : 'text-muted-foreground'}`}>
-            {currentNFT.collectionName || "Unknown Collection"}
-          </p>
-          {currentNFT.mediaType === 'video' && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>▶ Video</span>
-          )}
-          {currentNFT.mediaType === 'audio' && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>♪ Audio</span>
-          )}
-          {isCurrentPixelArt && (
-            <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>▦ Pixel Art</span>
+      <div className="flex-1 min-w-0" style={{ minHeight: showMetadata ? 'auto' : 0, visibility: showMetadata ? 'visible' : 'hidden', overflow: 'hidden', maxHeight: showMetadata ? 200 : 0, transition: 'max-height 0.2s ease, opacity 0.2s ease', opacity: showMetadata ? 1 : 0 }}>
+        <div className="space-y-1">
+          <h2 className={`text-xl md:text-2xl font-medium tracking-tight truncate ${dark ? 'text-white' : ''}`}>
+            {currentNFT.name || `#${currentNFT.tokenId}`}
+          </h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className={`text-sm font-light ${dark ? 'text-white/70' : 'text-muted-foreground'}`}>
+              {currentNFT.collectionName || "Unknown Collection"}
+            </p>
+            {currentNFT.mediaType === 'video' && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>▶ Video</span>
+            )}
+            {currentNFT.mediaType === 'audio' && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>♪ Audio</span>
+            )}
+            {isCurrentPixelArt && (
+              <span className={`text-xs px-1.5 py-0.5 rounded ${dark ? 'bg-white/10 border border-white/20 text-white/80' : 'bg-muted border border-border text-muted-foreground'}`}>▦ Pixel Art</span>
+            )}
+          </div>
+          {currentNFT.description && (
+            <p
+              className={`text-sm font-light max-w-2xl cursor-pointer ${expandedDesc ? '' : 'line-clamp-2'} ${dark ? 'text-white/50 hover:text-white/70' : 'text-muted-foreground/70 hover:text-muted-foreground'}`}
+              onClick={() => setExpandedDesc(p => !p)}
+              title={expandedDesc ? 'Click to collapse' : 'Click to expand'}
+            >
+              {currentNFT.description}
+            </p>
           )}
         </div>
-        {currentNFT.description && (
-          <p className={`text-sm font-light max-w-2xl line-clamp-2 ${dark ? 'text-white/50' : 'text-muted-foreground/70'}`}>
-            {currentNFT.description}
-          </p>
-        )}
       </div>
     );
   };
@@ -638,7 +710,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   if (isFullscreen || kioskMode) {
     return (
       <>
-        <div className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden"
+        <div ref={containerRef} className="fixed inset-0 z-40 flex items-center justify-center overflow-hidden"
           onMouseMove={() => {
             setShowFullscreenControls(true);
             if (fullscreenTimeoutRef.current) clearTimeout(fullscreenTimeoutRef.current);
@@ -646,7 +718,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
               if (!isSettingsOpen && !isFilterOpen) setShowFullscreenControls(false);
             }, kioskMode ? 2000 : 2500);
           }}>
-          <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} />
+          <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
           <AnimatePresence mode="wait">
             <motion.div key={currentIndex} {...txn}
               className="relative z-10 w-full h-full flex items-center justify-center p-6 md:p-8">
@@ -753,7 +825,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
 
         {/* Main display area */}
         <div className="relative flex-1 w-full flex items-center justify-center overflow-hidden">
-          <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} />
+          <BlurredBackground src={currentNFT.imageUrl} fallbackColor={bgColor} mode={bgMode} customColor={customBgColor} />
           <div className="relative z-10 w-full h-full flex items-center justify-center px-4 md:px-8 py-6 md:py-8">
             <AnimatePresence mode="wait">
               <motion.div key={currentIndex} {...txn}

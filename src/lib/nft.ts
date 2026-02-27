@@ -227,30 +227,53 @@ async function resolveSolDomain(domain: string): Promise<string> {
 const SCAM_NAME_KEYWORDS = [
   'claim', 'free mint', 'airdrop', 'voucher', 'rebate', 'congratulation',
   'winner', 'whitelist spot', 'free nft', 'free token', 'reward', 'bonus',
-  'visit ', 'go to ', 'click here',
+  'visit ', 'go to ', 'click here', 'staking reward', 'active staking',
+  'coupon', 'jupreward', 'drop ', ' drop',
+];
+
+/** Patterns that indicate scam/spam even when creators are "verified" */
+const SCAM_NAME_PATTERNS = [
+  /\$\d+/,                          // "$19262 SOL For You", "$3000 WIF"
+  /\d+\$\s?\w+/,                    // "3000$ WIF Drop"
+  /🎁|💰|🎉.*#\d+/,                // "🎁 100 $TRUMP #2"
+  /\d+\s?(sol|wif|trump|jup|bonk)\b/i, // Amount + token name combos
+  /\.com|\.io|\.xyz|\.net|\.org/i,  // URLs in name
+  /for you/i,                        // "$X For You"
+  /open #\d+/i,                      // "JP Open #009" style airdrops
 ];
 
 function isSolanaSpam(asset: any): boolean {
-  // 1. Burned token — definitely skip
   if (asset.burnt) return true;
 
   const meta   = asset.content?.metadata ?? {};
   const name   = (meta.name        ?? '').toLowerCase();
   const desc   = (meta.description ?? '').toLowerCase();
   const text   = name + ' ' + desc;
+  const rawName = meta.name ?? '';
   const creators: any[] = asset.creators ?? asset.content?.creators ?? [];
 
-  // 2. URL in name or description — almost always a phishing/scam drop
+  // 1. URL in name or description
   if (/https?:\/\/|www\.|\.xyz|\.gg\/|t\.me\//.test(text)) return true;
 
-  // 3. Common scam keywords in name
+  // 2. Common scam keywords
   if (SCAM_NAME_KEYWORDS.some(kw => name.includes(kw))) return true;
 
-  // 4. No verified creator AND no collection affiliation
-  //    Legitimate NFTs almost always have at least one of these
+  // 3. Pattern-based detection (catches verified scams)
+  if (SCAM_NAME_PATTERNS.some(p => p.test(rawName))) return true;
+
+  // 4. Emoji spam in name (legitimate NFTs rarely lead with gift/money emojis)
+  if (/^[🎁💰🎉💎🔥]/.test(rawName.trim())) return true;
+
+  // 5. No verified creator AND no collection
   const hasVerifiedCreator = creators.some((c: any) => c.verified === true);
   const hasCollection = (asset.grouping ?? []).some((g: any) => g.group_key === 'collection');
   if (!hasVerifiedCreator && !hasCollection) return true;
+
+  // 6. No image at all — likely a placeholder scam
+  const files = asset.content?.files ?? [];
+  const hasImage = files.some((f: any) => f.mime?.startsWith('image/') || f.cdn_uri || f.uri);
+  const hasLink = asset.content?.links?.image;
+  if (!hasImage && !hasLink) return true;
 
   return false;
 }
