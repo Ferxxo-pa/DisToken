@@ -9,6 +9,7 @@ import { EmbedModal } from "@/components/EmbedModal";
 import { AmbiencePlayer, AMBIENCE_OPTIONS } from "@/components/AmbiencePlayer";
 import type { AmbienceMode } from "@/components/AmbiencePlayer";
 import { AnalyticsPanel } from "@/components/AnalyticsPanel";
+import { SettingsDrawer } from "@/components/SettingsDrawer";
 
 import type { NFT } from "@/lib/nft";
 import { isLikelyPixelArt } from "@/lib/nft";
@@ -22,10 +23,9 @@ import type { AutoGroupKey } from "@/lib/autoCollections";
 import { recordDwell } from "@/lib/analytics";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  BarChart2, ChevronLeft, ChevronRight, Code2, Copy, DollarSign, Download, EyeOff,
-  Filter, HelpCircle, Info, LayoutGrid, List,
-  Maximize, Minimize, Moon, Music, Pause, Pin, Play,
-  Settings, Shuffle, Smartphone, Sun, Tv2, Undo2, Volume2, VolumeX
+  ChevronLeft, ChevronRight, EyeOff, LayoutGrid,
+  Maximize, Minimize, Music, Pause, Pin, Play,
+  Settings, Undo2, Volume2, VolumeX
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -362,7 +362,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(() => loadSet(curKey(walletAddress, 'hidden')));
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => loadSet(curKey(walletAddress, 'pinned')));
   const [selectedCollection, setSelectedCollection] = useState<string | null>(null);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [_isFilterOpen, _setIsFilterOpen] = useState(false);
 
   // ── Display state ────────────────────────────────────────
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -370,7 +370,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [isFullscreen, setIsFullscreen] = useState(kioskMode || embedMode);
   const [speed, setSpeed] = useState<keyof typeof SPEED_PRESETS>("normal");
   const [transition, setTransition] = useState<TransitionType>('fade');
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [_isSettingsOpen, _setIsSettingsOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [showGalleryHeader, setShowGalleryHeader] = useState(true);
   const [showFullscreenControls, setShowFullscreenControls] = useState(!kioskMode && !embedMode);
@@ -741,15 +741,8 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
 
   // Close dropdowns on outside click
   useEffect(() => {
-    if (!isSettingsOpen && !isFilterOpen) return;
-    const h = (e: MouseEvent) => {
-      const t = e.target as HTMLElement;
-      if (isSettingsOpen && !t.closest('[data-settings-button]') && !t.closest('[data-settings-dropdown]')) { setIsSettingsOpen(false); setIsBgPickerOpen(false); }
-      if (isFilterOpen && !t.closest('[data-filter-button]') && !t.closest('[data-filter-dropdown]')) setIsFilterOpen(false);
-    };
-    const timer = setTimeout(() => document.addEventListener('mousedown', h), 100);
-    return () => { clearTimeout(timer); document.removeEventListener('mousedown', h); };
-  }, [isSettingsOpen, isFilterOpen]);
+    return;
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -837,146 +830,8 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
     );
   };
 
-  const renderSettingsDropdown = () => (
-    <div className="absolute bottom-full right-0 mb-2 w-72 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-[80vh] overflow-auto" data-settings-dropdown>
-      <div className="space-y-1">
-        <p className="text-xs font-semibold text-black/60 px-2 py-1">Speed</p>
-        {Object.entries(SPEED_PRESETS).map(([key, { label }]) => (
-          <button key={key} onClick={() => { setSpeed(key as keyof typeof SPEED_PRESETS); setIsSettingsOpen(false); }}
-            className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${speed === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-            {label}
-          </button>
-        ))}
-
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <p className="text-xs font-semibold text-black/60 px-2 py-1">Transition</p>
-          {(['fade', 'slide', 'zoom', 'crossfade'] as TransitionType[]).map(t => (
-            <button key={t} onClick={() => { setTransition(t); setIsSettingsOpen(false); }}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors capitalize ${transition === t ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-              {t}
-            </button>
-          ))}
-        </div>
-
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <p className="text-xs font-semibold text-black/60 px-2 py-1">Background</p>
-          {(Object.entries(BG_PRESETS) as [BackgroundMode, { label: string; desc: string }][]).map(([key, { label, desc }]) => (
-            <button key={key} onClick={() => {
-              setBgMode(key);
-              if (key === 'custom') { setIsBgPickerOpen(true); } else { setIsSettingsOpen(false); }
-            }}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${bgMode === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-              <span>{label}</span>
-              <span className={`block text-xs ${bgMode === key ? 'text-white/60' : 'text-black/40'}`}>{desc}</span>
-            </button>
-          ))}
-          {bgMode === 'custom' && (
-            <div className="flex items-center gap-2 px-2 py-1.5">
-              <input type="color" value={customBgColor} onChange={e => setCustomBgColor(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border-0" />
-              <span className="text-xs text-black/60">{customBgColor}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Frame / Mat Effects */}
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <p className="text-xs font-semibold text-black/60 px-2 py-1">Frame Style</p>
-          {(Object.entries(FRAME_STYLES) as [FrameStyle, { label: string }][]).map(([key, { label }]) => (
-            <button key={key} onClick={() => { setFrameStyle(key); setIsSettingsOpen(false); }}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${frameStyle === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Background Ambience */}
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <p className="text-xs font-semibold text-black/60 px-2 py-1">Ambience</p>
-          {AMBIENCE_OPTIONS.map(({ key, label, icon }) => (
-            <button key={key} onClick={() => { setAmbienceMode(key); setIsSettingsOpen(false); }}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${ambienceMode === key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-              {icon} {label}
-            </button>
-          ))}
-        </div>
-
-        {/* Price overlay toggle */}
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <button onClick={() => { setShowPriceOverlay(p => !p); setIsSettingsOpen(false); }}
-            className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors flex items-center gap-2 ${showPriceOverlay ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-            <DollarSign className="h-3.5 w-3.5" />
-            {showPriceOverlay ? 'Hide floor price' : 'Show floor price'}
-          </button>
-        </div>
-
-        {/* Gallery Wall mode */}
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <p className="text-xs font-semibold text-black/60 px-2 py-1">Gallery Wall Grid</p>
-          {([2, 3, 4] as GridSize[]).map(size => (
-            <button key={size} onClick={() => { setWallGridSize(size); setIsSettingsOpen(false); }}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${wallGridSize === size ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-              {size}×{size} Grid
-            </button>
-          ))}
-        </div>
-
-        {/* Analytics */}
-        <div className="border-t border-black/10 mt-1 pt-1">
-          <button onClick={() => { setIsAnalyticsOpen(true); setIsSettingsOpen(false); }}
-            className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 flex items-center gap-2">
-            <BarChart2 className="h-3.5 w-3.5" /> View Analytics
-          </button>
-        </div>
-
-        {hiddenIds.size > 0 && (
-          <div className="border-t border-black/10 mt-1 pt-1">
-            <button onClick={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); setIsSettingsOpen(false); }}
-              className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-black/10 flex items-center gap-2 text-red-600">
-              <Undo2 className="h-3.5 w-3.5" /> Restore {hiddenIds.size} hidden
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-
-  const renderFilterDropdown = () => (
-    <div className="absolute bottom-full right-0 mb-2 w-64 p-2 rounded-md border bg-white text-black border-black/20 shadow-lg z-50 max-h-96 overflow-auto" data-filter-dropdown>
-      <div className="space-y-1">
-        <p className="text-xs font-semibold text-black/60 px-2 py-1">Filter by Collection</p>
-        <button onClick={() => { setSelectedCollection(null); setActiveAutoGroup(null); setIsFilterOpen(false); }}
-          className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${!selectedCollection && !activeAutoGroup ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-          All ({rawNfts.filter(n => !hiddenIds.has(n.tokenId)).length})
-        </button>
-        {collections.map(name => {
-          const count = rawNfts.filter(n => n.collectionName === name && !hiddenIds.has(n.tokenId)).length;
-          return (
-            <button key={name} onClick={() => { setSelectedCollection(name); setActiveAutoGroup(null); setIsFilterOpen(false); setCurrentIndex(0); }}
-              className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors truncate ${selectedCollection === name ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-              {name} ({count})
-            </button>
-          );
-        })}
-
-        {/* Smart Auto-Collections */}
-        {autoGroups.length > 0 && (
-          <>
-            <div className="border-t border-black/10 mt-1 pt-1">
-              <p className="text-xs font-semibold text-black/60 px-2 py-1">Smart Groups</p>
-            </div>
-            {autoGroups.map(group => (
-              <button key={group.key}
-                onClick={() => { setActiveAutoGroup(group.key); setSelectedCollection(null); setIsFilterOpen(false); setCurrentIndex(0); }}
-                className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors truncate ${activeAutoGroup === group.key ? "bg-black text-white font-medium" : "hover:bg-black/10"}`}>
-                {group.icon} {group.label} ({group.count})
-              </button>
-            ))}
-          </>
-        )}
-      </div>
-    </div>
-  );
+  // ── Settings drawer state ──────────────────────────────────
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const renderControls = (dark: boolean) => {
     const btn = dark
@@ -984,89 +839,33 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
       : "border-border/50 hover:bg-accent";
     const txt = dark ? 'text-white/70' : 'text-muted-foreground';
     return (
-      <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-        {/* Stats */}
-        <span className={`text-xs font-light ${txt} hidden md:inline`}>
-          {collectionStats.total} NFTs · {collectionStats.collections} collection{collectionStats.collections !== 1 ? 's' : ''}
-        </span>
+      <div className="flex items-center gap-2 md:gap-3">
+        {/* Progress */}
         <div className="flex items-center gap-2">
           <span className={`text-sm font-light ${txt}`}>{currentIndex + 1}</span>
-          <div className={`w-20 h-px ${dark ? 'bg-white/30' : 'bg-border'}`}>
+          <div className={`w-16 md:w-20 h-px ${dark ? 'bg-white/30' : 'bg-border'}`}>
             <div className={`h-full transition-all duration-300 ${dark ? 'bg-white' : 'bg-foreground'}`}
               style={{ width: `${((currentIndex + 1) / nfts.length) * 100}%` }} />
           </div>
           <span className={`text-sm font-light ${txt}`}>{nfts.length}</span>
         </div>
+        {/* Play/Pause */}
         <Button variant="outline" size="icon" onClick={togglePlay} className={`${btn} h-9 w-9 rounded-full`}>
           {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
-        <Button variant="outline" size="icon" onClick={toggleShuffle}
-          className={`${btn} h-9 w-9 rounded-full ${isShuffle ? 'ring-1 ring-white/40' : ''}`} title="Shuffle (S)">
-          <Shuffle className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={toggleMetadata}
-          className={`${btn} h-9 w-9 rounded-full ${showMetadata ? 'ring-1 ring-white/40' : ''}`} title="Info (I)">
-          <Info className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={toggleMute}
-          className={`${btn} h-9 w-9 rounded-full`} title="Mute (M)">
-          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </Button>
-        {(collections.length > 1 || autoGroups.length > 0) && (
-          <div className="relative">
-            <Button variant="outline" size="icon" onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`${btn} h-9 w-9 rounded-full ${(selectedCollection || activeAutoGroup) ? 'ring-1 ring-white/40' : ''}`} data-filter-button>
-              <Filter className="h-4 w-4" />
-            </Button>
-            {isFilterOpen && renderFilterDropdown()}
-          </div>
-        )}
-        {/* Wall mode toggle */}
-        <Button variant="outline" size="icon" onClick={() => setIsWallMode(p => !p)}
-          className={`${btn} h-9 w-9 rounded-full ${isWallMode ? 'ring-1 ring-white/40' : ''}`} title="Gallery Wall Mode">
-          <Tv2 className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => { setIsGalleryOpen(!isGalleryOpen); setShowGalleryHeader(true); }}
-          className={`${btn} h-9 w-9 rounded-full`}>
-          <LayoutGrid className="h-4 w-4" />
-        </Button>
-        <div className="relative">
-          <Button variant="outline" size="icon" onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            className={`${btn} h-9 w-9 rounded-full`} data-settings-button>
-            <Settings className="h-4 w-4" />
-          </Button>
-          {isSettingsOpen && renderSettingsDropdown()}
-        </div>
-        <Button variant="outline" size="icon" onClick={() => setIsDarkMode(!isDarkMode)}
-          className={`${btn} h-9 w-9 rounded-full`} title="Theme (D)">
-          {isDarkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsPlaylistOpen(true)}
-          className={`${btn} h-9 w-9 rounded-full ${activePlaylist ? 'ring-1 ring-white/40' : ''}`} title="Playlists">
-          <List className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsRemoteOpen(true)}
-          className={`${btn} h-9 w-9 rounded-full`} title="Phone Remote">
-          <Smartphone className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={copyShareUrl}
-          className={`${btn} h-9 w-9 rounded-full ${copied ? 'ring-1 ring-green-400' : ''}`} title="Copy share link">
-          <Copy className={`h-4 w-4 ${copied ? 'text-green-400' : ''}`} />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => setIsEmbedOpen(true)}
-          className={`${btn} h-9 w-9 rounded-full`} title="Embed widget">
-          <Code2 className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={downloadCurrentNFT}
-          className={`${btn} h-9 w-9 rounded-full`} title="Download current NFT">
-          <Download className="h-4 w-4" />
-        </Button>
-        <Button variant="outline" size="icon" onClick={() => { setWalkthroughForce(true); setShowWalkthrough(true); }}
-          className={`${btn} h-9 w-9 rounded-full`} title="Feature tour">
-          <HelpCircle className="h-4 w-4" />
-        </Button>
+        {/* Fullscreen */}
         <Button variant="outline" size="icon" onClick={toggleFullscreen} className={`${btn} h-9 w-9 rounded-full`}>
           {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
+        </Button>
+        {/* Gallery grid */}
+        <Button variant="outline" size="icon" onClick={() => { setIsGalleryOpen(!isGalleryOpen); setShowGalleryHeader(true); }}
+          className={`${btn} h-9 w-9 rounded-full`} title="Gallery">
+          <LayoutGrid className="h-4 w-4" />
+        </Button>
+        {/* Settings drawer toggle */}
+        <Button variant="outline" size="icon" onClick={() => setIsDrawerOpen(true)}
+          className={`${btn} h-9 w-9 rounded-full`} title="Settings">
+          <Settings className="h-4 w-4" />
         </Button>
       </div>
     );
@@ -1215,7 +1014,7 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             setShowFullscreenControls(true);
             if (fullscreenTimeoutRef.current) clearTimeout(fullscreenTimeoutRef.current);
             fullscreenTimeoutRef.current = setTimeout(() => {
-              if (!isSettingsOpen && !isFilterOpen) setShowFullscreenControls(false);
+              setShowFullscreenControls(false);
             }, isAmbient ? 1500 : kioskMode ? 2000 : 2500);
           }}
           onTouchStart={e => {
@@ -1356,6 +1155,54 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
         <EmbedModal walletAddress={walletAddress} isOpen={isEmbedOpen} onClose={() => setIsEmbedOpen(false)} />
         <AnalyticsPanel isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
         <AmbiencePlayer mode={ambienceMode} isMuted={isMuted} />
+        <SettingsDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          speed={speed}
+          onSpeedChange={(s) => setSpeed(s)}
+          transition={transition}
+          onTransitionChange={(t) => setTransition(t)}
+          bgMode={bgMode}
+          onBgModeChange={(m) => setBgMode(m)}
+          customBgColor={customBgColor}
+          onCustomBgColorChange={(c) => setCustomBgColor(c)}
+          frameStyle={frameStyle}
+          onFrameStyleChange={(f) => setFrameStyle(f)}
+          isDarkMode={isDarkMode}
+          onDarkModeToggle={() => setIsDarkMode(p => !p)}
+          isShuffle={isShuffle}
+          onShuffleToggle={toggleShuffle}
+          showMetadata={showMetadata}
+          onMetadataToggle={toggleMetadata}
+          showPriceOverlay={showPriceOverlay}
+          onPriceOverlayToggle={() => setShowPriceOverlay(p => !p)}
+          collections={collections}
+          selectedCollection={selectedCollection}
+          onCollectionChange={(c) => { setSelectedCollection(c); setCurrentIndex(0); }}
+          autoGroups={autoGroups}
+          activeAutoGroup={activeAutoGroup}
+          onAutoGroupChange={(g) => { setActiveAutoGroup(g); setCurrentIndex(0); }}
+          isGalleryWallMode={isWallMode}
+          onGalleryWallToggle={() => setIsWallMode(p => !p)}
+          galleryWallSize={wallGridSize}
+          onGalleryWallSizeChange={(s) => setWallGridSize(s)}
+          activePlaylist={activePlaylist}
+          onPlaylistOpen={() => setIsPlaylistOpen(true)}
+          onRemoteOpen={() => setIsRemoteOpen(true)}
+          onEmbedOpen={() => setIsEmbedOpen(true)}
+          ambienceMode={ambienceMode}
+          onAmbienceModeChange={(m) => setAmbienceMode(m)}
+          onAnalyticsOpen={() => setIsAnalyticsOpen(true)}
+          onWalkthroughOpen={() => { setWalkthroughForce(true); setShowWalkthrough(true); }}
+          onDownload={downloadCurrentNFT}
+          onCopyLink={copyShareUrl}
+          copied={copied}
+          hiddenCount={hiddenIds.size}
+          onRestoreHidden={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); }}
+          totalNfts={nfts.length}
+          totalCollections={collectionStats.collections}
+          walletAddress={walletAddress}
+        />
       </>
     );
   }
@@ -1522,6 +1369,54 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
       <EmbedModal walletAddress={walletAddress} isOpen={isEmbedOpen} onClose={() => setIsEmbedOpen(false)} />
       <AnalyticsPanel isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
       <AmbiencePlayer mode={ambienceMode} isMuted={isMuted} />
+      <SettingsDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        speed={speed}
+        onSpeedChange={(s) => setSpeed(s)}
+        transition={transition}
+        onTransitionChange={(t) => setTransition(t)}
+        bgMode={bgMode}
+        onBgModeChange={(m) => setBgMode(m)}
+        customBgColor={customBgColor}
+        onCustomBgColorChange={(c) => setCustomBgColor(c)}
+        frameStyle={frameStyle}
+        onFrameStyleChange={(f) => setFrameStyle(f)}
+        isDarkMode={isDarkMode}
+        onDarkModeToggle={() => setIsDarkMode(p => !p)}
+        isShuffle={isShuffle}
+        onShuffleToggle={toggleShuffle}
+        showMetadata={showMetadata}
+        onMetadataToggle={toggleMetadata}
+        showPriceOverlay={showPriceOverlay}
+        onPriceOverlayToggle={() => setShowPriceOverlay(p => !p)}
+        collections={collections}
+        selectedCollection={selectedCollection}
+        onCollectionChange={(c) => { setSelectedCollection(c); setCurrentIndex(0); }}
+        autoGroups={autoGroups}
+        activeAutoGroup={activeAutoGroup}
+        onAutoGroupChange={(g) => { setActiveAutoGroup(g); setCurrentIndex(0); }}
+        isGalleryWallMode={isWallMode}
+        onGalleryWallToggle={() => setIsWallMode(p => !p)}
+        galleryWallSize={wallGridSize}
+        onGalleryWallSizeChange={(s) => setWallGridSize(s)}
+        activePlaylist={activePlaylist}
+        onPlaylistOpen={() => setIsPlaylistOpen(true)}
+        onRemoteOpen={() => setIsRemoteOpen(true)}
+        onEmbedOpen={() => setIsEmbedOpen(true)}
+        ambienceMode={ambienceMode}
+        onAmbienceModeChange={(m) => setAmbienceMode(m)}
+        onAnalyticsOpen={() => setIsAnalyticsOpen(true)}
+        onWalkthroughOpen={() => { setWalkthroughForce(true); setShowWalkthrough(true); }}
+        onDownload={downloadCurrentNFT}
+        onCopyLink={copyShareUrl}
+        copied={copied}
+        hiddenCount={hiddenIds.size}
+        onRestoreHidden={() => { setHiddenIds(new Set()); saveSet(curKey(walletAddress, 'hidden'), new Set()); }}
+        totalNfts={nfts.length}
+        totalCollections={collectionStats.collections}
+        walletAddress={walletAddress}
+      />
     </>
   );
 }

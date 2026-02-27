@@ -388,22 +388,6 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
         </div>
       </main>
 
-      {/* Pro Features CTA */}
-      <div className="container">
-        <div className="border-t border-border/30 py-8">
-          <button
-            onClick={() => setShowProWaitlist(true)}
-            className="w-full text-center group cursor-pointer"
-          >
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border/50 hover:border-foreground/30 transition-all hover:bg-accent/50">
-              <span className="text-xs font-medium tracking-wider uppercase text-muted-foreground group-hover:text-foreground transition-colors">
-                ✦ Pro Features
-              </span>
-            </div>
-          </button>
-        </div>
-      </div>
-
       {/* Pro Waitlist Modal */}
       {showProWaitlist && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowProWaitlist(false)}>
@@ -485,6 +469,12 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
                 Ezven.eth
               </a>
             </p>
+            <button
+              onClick={() => setShowProWaitlist(true)}
+              className="font-light hover:text-foreground transition-colors"
+            >
+              Pro Features
+            </button>
             <p style={{ fontWeight: 200 }}>V.2 — Ethereum + Solana</p>
           </div>
         </div>
