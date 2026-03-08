@@ -318,10 +318,12 @@ function isSolanaSpam(asset: any): boolean {
   // 4. Emoji spam in name (legitimate NFTs rarely lead with gift/money emojis)
   if (/^[🎁💰🎉💎🔥]/.test(rawName.trim())) return true;
 
-  // 5. No verified creator AND no collection
+  // 5. No verified creator AND no collection AND no meaningful name
+  // Many legitimate 1/1 NFTs or early mints don't have verified creators or collections
   const hasVerifiedCreator = creators.some((c: any) => c.verified === true);
   const hasCollection = (asset.grouping ?? []).some((g: any) => g.group_key === 'collection');
-  if (!hasVerifiedCreator && !hasCollection) return true;
+  const hasMeaningfulName = name.length > 3 && !SCAM_NAME_KEYWORDS.some(kw => name.includes(kw));
+  if (!hasVerifiedCreator && !hasCollection && !hasMeaningfulName) return true;
 
   // 6. No image at all — likely a placeholder scam
   const files = asset.content?.files ?? [];
@@ -382,10 +384,26 @@ async function fetchSolanaNFTs(walletAddress: string): Promise<NFTCollection> {
 
   const nfts: NFT[] = allItems
     .filter((asset: any) => {
-      // Only include NFTs (interface = V1_NFT, ProgrammableNFT, V2_NFT, MplCoreAsset)
+      // Include NFTs across all Metaplex standards:
+      // V1_NFT, V2_NFT, ProgrammableNFT (pNFTs), MplCoreAsset (Core), 
+      // MplCoreCollection, Custom (some legacy), Compressed/cNFT
       const iface: string = asset.interface ?? '';
-      if (!(iface.includes('NFT') || iface === 'MplCoreAsset' || iface === 'V1_NFT' || iface === 'ProgrammableNFT')) {
-        return false;
+      const validInterfaces = [
+        'V1_NFT', 'V2_NFT', 'ProgrammableNFT', 'MplCoreAsset', 
+        'MplCoreCollection', 'Custom',
+      ];
+      const isNFT = validInterfaces.includes(iface) || iface.includes('NFT');
+      
+      // Also check compression — compressed NFTs are valid
+      const isCompressed = asset.compression?.compressed === true;
+      
+      if (!isNFT && !isCompressed) {
+        // Skip fungible tokens and other non-NFT assets
+        if (iface === 'FungibleToken' || iface === 'FungibleAsset') return false;
+        // Unknown interface — let it through if it has an image (conservative approach)
+        const files = asset.content?.files ?? [];
+        const hasImage = files.some((f: any) => f.mime?.startsWith('image/') || f.cdn_uri);
+        if (!hasImage && !asset.content?.links?.image) return false;
       }
       // Spam / airdrop filter
       return !isSolanaSpam(asset);

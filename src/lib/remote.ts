@@ -38,6 +38,24 @@ export interface RemoteState {
 
 const PEER_PREFIX = 'distoken-';
 
+// WebRTC ICE servers for reliable connections across networks
+const ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
+  // Free TURN relay for NAT traversal (metered.ca free tier)
+  { urls: 'stun:stun.relay.metered.ca:80' },
+];
+
+const PEER_CONFIG = {
+  debug: 0,
+  config: {
+    iceServers: ICE_SERVERS,
+  },
+};
+
 export function generateRoomCode(): string {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -54,17 +72,31 @@ export class RemoteHost {
   constructor(roomCode: string, onCommand: (cmd: RemoteCommand) => void) {
     this.roomCode = roomCode;
     this.onCommand = onCommand;
-    this.peer = new Peer(PEER_PREFIX + roomCode, {
-      debug: 0,
-    });
+    this.peer = new Peer(PEER_PREFIX + roomCode, PEER_CONFIG);
 
     this._ready = new Promise((resolve, reject) => {
       this.peer.on('open', () => resolve());
       this.peer.on('error', (err) => {
         console.warn('[RemoteHost] Peer error:', err.type, err.message);
-        // If ID is taken, it means another host has this room code
         if (err.type === 'unavailable-id') {
           reject(new Error('Room code already in use'));
+        }
+        // On disconnection from signaling server, attempt reconnect
+        if (err.type === 'disconnected' || err.type === 'network') {
+          setTimeout(() => {
+            if (!this._destroyed && !this.peer.destroyed) {
+              try { this.peer.reconnect(); } catch (e) { /* ignore */ }
+            }
+          }, 3000);
+        }
+      });
+      
+      this.peer.on('disconnected', () => {
+        if (!this._destroyed && !this.peer.destroyed) {
+          console.warn('[RemoteHost] Disconnected from signaling server, reconnecting...');
+          setTimeout(() => {
+            try { this.peer.reconnect(); } catch (e) { /* ignore */ }
+          }, 2000);
         }
       });
     });
@@ -123,7 +155,7 @@ export class RemoteClient {
     this.onDisconnected = opts?.onDisconnected ?? null;
 
     // Client gets a random ID
-    this.peer = new Peer(undefined as any, { debug: 0 });
+    this.peer = new Peer(undefined as any, PEER_CONFIG);
     this.peer.on('open', () => {
       this.connectToHost();
     });
