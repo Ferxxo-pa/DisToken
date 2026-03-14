@@ -720,3 +720,135 @@ export async function fetchNFTsForWallet(walletAddress: string): Promise<NFTColl
     'Invalid address. Supported: Ethereum (0x… / .eth), Solana (.sol), Tezos (tz… / .tez), Bitcoin (bc1… / 1… / 3…)'
   );
 }
+
+// ── Collection Name Search ───────────────────────────────────
+
+export interface CollectionSearchResult {
+  address: string;
+  name: string;
+  symbol?: string;
+  imageUrl?: string;
+  totalSupply?: string;
+  chain: 'ethereum';
+}
+
+/**
+ * Search for NFT collections by name using Alchemy's searchContractMetadata
+ * Falls back to Reservoir API if no Alchemy key is configured.
+ */
+export async function searchCollectionByName(query: string): Promise<CollectionSearchResult[]> {
+  if (!query.trim()) return [];
+  const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY;
+
+  if (apiKey) {
+    // Alchemy v3 searchContractMetadata
+    const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${apiKey}/searchContractMetadata?query=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { headers: { Accept: 'application/json' } });
+    if (!res.ok) throw new Error(`Alchemy search error: ${res.statusText}`);
+    const data = await res.json();
+    const contracts: any[] = data.contracts || [];
+    return contracts.slice(0, 10).map((c: any) => ({
+      address: c.address,
+      name: c.name || c.openSeaMetadata?.collectionName || c.openseaMetadata?.collectionName || 'Unknown',
+      symbol: c.symbol,
+      imageUrl: c.openSeaMetadata?.imageUrl || c.openseaMetadata?.imageUrl,
+      totalSupply: c.totalSupply,
+      chain: 'ethereum' as const,
+    }));
+  }
+
+  // Reservoir fallback (no key required) — searches Ethereum mainnet
+  const res = await fetch(
+    `https://api.reservoir.tools/search/collections/v2?name=${encodeURIComponent(query)}&limit=10`,
+    { headers: { Accept: 'application/json', 'x-api-key': 'demo' } }
+  );
+  if (!res.ok) throw new Error(`Reservoir search error: ${res.statusText}`);
+  const data = await res.json();
+  const collections: any[] = data.collections || [];
+  return collections.map((c: any) => ({
+    address: c.contract || c.primaryContract || '',
+    name: c.name || 'Unknown',
+    symbol: c.symbol,
+    imageUrl: c.image,
+    totalSupply: c.tokenCount?.toString(),
+    chain: 'ethereum' as const,
+  })).filter((c: CollectionSearchResult) => c.address);
+}
+
+/**
+ * Fetch NFTs for a specific collection contract address.
+ * Uses Alchemy if key available, otherwise Reservoir.
+ */
+export async function fetchNFTsForCollection(contractAddress: string): Promise<NFTCollection> {
+  const apiKey = import.meta.env.VITE_ALCHEMY_API_KEY;
+
+  if (apiKey) {
+    // Alchemy v3 getNFTsForCollection
+    const allNfts: NFT[] = [];
+    let pageKey: string | undefined;
+
+    do {
+      const params = new URLSearchParams({
+        contractAddress,
+        withMetadata: 'true',
+        limit: '100',
+        ...(pageKey ? { pageKey } : {}),
+      });
+      const url = `https://eth-mainnet.g.alchemy.com/nft/v3/${apiKey}/getNFTsForCollection?${params}`;
+      const res = await fetch(url, { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error(`Alchemy collection fetch error: ${res.statusText}`);
+      const data = await res.json();
+      const items: any[] = data.nfts || [];
+      items.forEach((nft: any) => {
+        const rawImg = nft.image?.cachedUrl || nft.image?.thumbnailUrl || nft.image?.originalUrl || '';
+        const rawAnim = nft.raw?.metadata?.animation_url || '';
+        const imgUrl = resolveUri(rawImg);
+        const animUrl = resolveUri(rawAnim);
+        if (!imgUrl && !animUrl) return;
+        allNfts.push({
+          tokenId: nft.tokenId || 'unknown',
+          contractAddress,
+          collectionName: nft.contract?.name || 'Unknown Collection',
+          name: nft.name || `#${nft.tokenId}`,
+          description: nft.description || '',
+          imageUrl: imgUrl,
+          animationUrl: animUrl || undefined,
+          mediaType: detectMediaType(animUrl || imgUrl),
+          metadata: nft.raw?.metadata,
+          chain: 'ethereum' as const,
+        });
+      });
+      pageKey = data.pageKey;
+      // Cap at 500 NFTs for display
+    } while (pageKey && allNfts.length < 500);
+
+    return { owner: contractAddress, chain: 'ethereum', nfts: allNfts, totalCount: allNfts.length };
+  }
+
+  // Reservoir fallback
+  const res = await fetch(
+    `https://api.reservoir.tools/tokens/v6?collection=${contractAddress}&includeMetadata=true&limit=100`,
+    { headers: { Accept: 'application/json', 'x-api-key': 'demo' } }
+  );
+  if (!res.ok) throw new Error(`Reservoir collection fetch error: ${res.statusText}`);
+  const data = await res.json();
+  const tokens: any[] = data.tokens || [];
+  const nfts: NFT[] = tokens
+    .filter((t: any) => t.token?.image)
+    .map((t: any) => {
+      const tok = t.token;
+      const imgUrl = resolveUri(tok.image || '');
+      return {
+        tokenId: tok.tokenId || 'unknown',
+        contractAddress,
+        collectionName: tok.collection?.name || 'Unknown Collection',
+        name: tok.name || `#${tok.tokenId}`,
+        description: tok.description || '',
+        imageUrl: imgUrl,
+        mediaType: detectMediaType(imgUrl),
+        metadata: tok.attributes,
+        chain: 'ethereum' as const,
+      };
+    });
+  return { owner: contractAddress, chain: 'ethereum', nfts, totalCount: nfts.length };
+}

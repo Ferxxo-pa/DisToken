@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NFTSlideshow } from "@/components/NFTSlideshow";
-import { fetchNFTsForWallet, fetchMultiWallet, detectChain, type NFTCollection } from "@/lib/nft";
+import { fetchNFTsForWallet, fetchMultiWallet, fetchNFTsForCollection, detectChain, type NFTCollection, type CollectionSearchResult } from "@/lib/nft";
+import { CollectionSearch } from "@/components/CollectionSearch";
 import { Sparkles } from "lucide-react";
 import { Waitlist } from "@/components/Waitlist";
 import { useEffect, useState } from "react";
@@ -92,13 +93,15 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
   const [showProWaitlist, setShowProWaitlist] = useState(false);
   const [proEmail, setProEmail] = useState('');
   const [proSubmitted, setProSubmitted] = useState(false);
+  // Search mode: 'wallet' | 'collection'
+  const [searchMode, setSearchMode] = useState<'wallet' | 'collection'>('wallet');
 
   useEffect(() => {
     setIsPageLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (activeWallet) {
+    if (activeWallet && !activeWallet.startsWith('collection:')) {
       setIsLoading(true);
       setError(null);
 
@@ -192,6 +195,26 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
     setNftData(null);
     setError(null);
     navigate('/');
+  };
+
+  const handleCollectionSelect = (result: CollectionSearchResult) => {
+    setIsLoading(true);
+    setError(null);
+    setNftData(null);
+    // Temporarily mark activeWallet so the loaded slideshow view renders
+    // We bypass the useEffect re-fetch by setting nftData directly after load
+    setActiveWallet(`collection:${result.address}`);
+    fetchNFTsForCollection(result.address)
+      .then((data) => {
+        const labeled = { ...data, owner: result.name || result.address };
+        setNftData(labeled);
+        setIsLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message || "Failed to fetch collection NFTs");
+        setIsLoading(false);
+        setActiveWallet(null);
+      });
   };
 
   if (activeWallet) {
@@ -312,9 +335,38 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
             </p>
           </div>
 
+          {/* Mode Toggle */}
+          <div
+            className="flex rounded-xl border border-border/50 p-1 bg-card/50 transition-all duration-700 ease-out"
+            style={{
+              opacity: isPageLoaded ? 1 : 0,
+              transitionDelay: '150ms',
+            }}
+          >
+            <button
+              onClick={() => setSearchMode('wallet')}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                searchMode === 'wallet'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Wallet Address
+            </button>
+            <button
+              onClick={() => setSearchMode('collection')}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                searchMode === 'collection'
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Collection Name
+            </button>
+          </div>
+
           {/* Input Form */}
-          <form 
-            onSubmit={handleSubmit} 
+          <div
             className="space-y-4 transition-all duration-700 ease-out"
             style={{
               opacity: isPageLoaded ? 1 : 0,
@@ -322,38 +374,48 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
               transitionDelay: '200ms',
             }}
           >
-            <div className="relative">
-              <Input
-                type="text"
-                placeholder="0x… / .eth / .sol / tz… / .tez / bc1… (comma-separate for multi-wallet)"
-                value={walletAddress}
-                onChange={(e) => {
-                  setWalletAddress(e.target.value);
-                  if (validationError) setValidationError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleSubmit(e as any);
-                  }
-                }}
-                className={`w-full h-14 px-6 text-center bg-card border-border focus:border-foreground transition-colors ${
-                  validationError ? 'border-destructive focus:border-destructive' : ''
-                }`}
-              />
-              {validationError && (
-                <p className="text-sm text-destructive mt-2 text-center font-light">
-                  {validationError}
+            {searchMode === 'wallet' ? (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="0x… / .eth / .sol / tz… / .tez / bc1… (comma-separate for multi-wallet)"
+                    value={walletAddress}
+                    onChange={(e) => {
+                      setWalletAddress(e.target.value);
+                      if (validationError) setValidationError("");
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSubmit(e as any);
+                      }
+                    }}
+                    className={`w-full h-14 px-6 text-center bg-card border-border focus:border-foreground transition-colors ${
+                      validationError ? 'border-destructive focus:border-destructive' : ''
+                    }`}
+                  />
+                  {validationError && (
+                    <p className="text-sm text-destructive mt-2 text-center font-light">
+                      {validationError}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full h-14 bg-foreground text-background hover:bg-foreground/90 font-medium tracking-wide transition-all"
+                >
+                  View Collection
+                </Button>
+              </form>
+            ) : (
+              <div className="space-y-4">
+                <CollectionSearch onSelect={handleCollectionSelect} />
+                <p className="text-xs text-muted-foreground text-center font-light">
+                  Type a collection name and select from results to load it instantly
                 </p>
-              )}
-            </div>
-            
-            <Button
-              type="submit"
-              className="w-full h-14 bg-foreground text-background hover:bg-foreground/90 font-medium tracking-wide transition-all"
-            >
-              View Collection
-            </Button>
-          </form>
+              </div>
+            )}
+          </div>
 
           {/* Example Link */}
           <div 
