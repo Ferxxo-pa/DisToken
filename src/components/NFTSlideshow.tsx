@@ -10,7 +10,7 @@ import { AnalyticsPanel } from "@/components/AnalyticsPanel";
 import { SettingsDrawer } from "@/components/SettingsDrawer";
 
 import type { NFT } from "@/lib/nft";
-import { isLikelyPixelArt, chainBadge } from "@/lib/nft";
+import { fetchFloorPrice, isLikelyPixelArt, chainBadge } from "@/lib/nft";
 import type { Playlist } from "@/lib/playlists";
 import { loadPlaylists } from "@/lib/playlists";
 import { RemoteHost, generateRoomCode, type RemoteCommand } from "@/lib/remote";
@@ -386,8 +386,11 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const [customSpeedMs, setCustomSpeedMs] = useState(5000);
   const [useCustomSpeed, setUseCustomSpeed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [floorPrice, setFloorPrice] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const fullscreenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const floorPriceCacheRef = useRef<Map<string, number | null>>(new Map());
+  const floorPriceRequestsRef = useRef<Map<string, Promise<number | null>>>(new Map());
 
   // ── Gallery Wall state ───────────────────────────────────
   // Gallery wall — Pro roadmap
@@ -506,6 +509,49 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
   const currentSpeed = useCustomSpeed ? customSpeedMs : SPEED_PRESETS[speed].value;
   const isCurrentPixelArt = usePixelArtDetection(currentNFT);
   const currentOrientation = useOrientationDetection(currentNFT);
+
+  useEffect(() => {
+    const contractAddress = currentNFT?.contractAddress?.trim().toLowerCase();
+    if (!contractAddress) {
+      setFloorPrice(null);
+      return;
+    }
+
+    if (floorPriceCacheRef.current.has(contractAddress)) {
+      setFloorPrice(floorPriceCacheRef.current.get(contractAddress) ?? null);
+      return;
+    }
+
+    let cancelled = false;
+    const existingRequest = floorPriceRequestsRef.current.get(contractAddress);
+    const request = existingRequest ?? fetchFloorPrice(contractAddress)
+      .then((result) => {
+        const nextPrice = typeof result?.eth === "number" ? result.eth : null;
+        floorPriceCacheRef.current.set(contractAddress, nextPrice);
+        return nextPrice;
+      })
+      .catch(() => {
+        floorPriceCacheRef.current.set(contractAddress, null);
+        return null;
+      })
+      .finally(() => {
+        floorPriceRequestsRef.current.delete(contractAddress);
+      });
+
+    if (!existingRequest) {
+      floorPriceRequestsRef.current.set(contractAddress, request);
+    }
+
+    request.then((nextPrice) => {
+      if (!cancelled) {
+        setFloorPrice(nextPrice);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentNFT?.contractAddress]);
 
   // Preload upcoming images
   useImagePreloader(nfts, currentIndex, 3);
@@ -1017,6 +1063,11 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
             <motion.div key={currentIndex} {...txn}
               className="relative z-10 w-full h-full flex items-center justify-center p-6 md:p-8">
               {renderFramedMedia(currentNFT, maxStyleFS, "rounded-lg shadow-2xl", handleVideoEnd, () => setIsZoomOpen(true))}
+              {floorPrice !== null && (
+                <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-mono">
+                  Ξ {floorPrice.toFixed(3)}
+                </div>
+              )}
             </motion.div>
           </AnimatePresence>
 
@@ -1258,6 +1309,11 @@ export function NFTSlideshow({ nfts: rawNfts, walletAddress, chain, onChangeWall
                   onMouseEnter={() => setHoveredNFT(currentNFT.tokenId)}
                   onMouseLeave={() => setHoveredNFT(null)}>
                   {renderFramedMedia(currentNFT, maxStyleNormal, "shadow-refined rounded-lg", handleVideoEnd, () => setIsZoomOpen(true))}
+                  {floorPrice !== null && (
+                    <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm rounded-full px-3 py-1 text-xs text-white font-mono">
+                      Ξ {floorPrice.toFixed(3)}
+                    </div>
+                  )}
                   {hoveredNFT === currentNFT.tokenId && (
                     <div className="absolute top-2 right-2 flex gap-1.5 z-10">
                       <button onClick={() => togglePin(currentNFT.tokenId)}

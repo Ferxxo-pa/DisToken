@@ -308,9 +308,17 @@ export default function Home({ initialWallet, kioskMode = false, embedMode = fal
             <p className="text-sm font-light tracking-wider uppercase">
               Display
             </p>
-            <h1 className="text-lg font-medium tracking-tight">
-              DisToken
-            </h1>
+            <div className="text-center">
+              <h1 className="text-lg font-medium tracking-tight">
+                DisToken
+              </h1>
+              <button
+                onClick={() => navigate('/collections')}
+                className="text-xs text-zinc-500 hover:text-zinc-300 cursor-pointer transition-colors mt-1"
+              >
+                Explore Collections →
+              </button>
+            </div>
             <p className="text-sm font-light tracking-wider uppercase">
               Tokens
             </p>

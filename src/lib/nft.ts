@@ -123,6 +123,75 @@ export interface NFTCollection {
   totalCount: number;
 }
 
+const FLOOR_PRICE_TTL_MS = 5 * 60 * 1000;
+
+interface FloorPriceCacheEntry {
+  price: number;
+  ts: number;
+}
+
+export async function fetchFloorPrice(contractAddress: string): Promise<{ eth?: number } | null> {
+  const normalized = contractAddress.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const cacheKey = `floorprice_${normalized}`;
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = window.localStorage.getItem(cacheKey);
+      if (raw) {
+        const cached = JSON.parse(raw) as FloorPriceCacheEntry;
+        if (typeof cached.price === 'number' && typeof cached.ts === 'number' && Date.now() - cached.ts < FLOOR_PRICE_TTL_MS) {
+          return { eth: cached.price };
+        }
+      }
+    } catch {
+      // Ignore malformed cache entries and continue to network fetch.
+    }
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.reservoir.tools/collections/v6?id=${encodeURIComponent(contractAddress)}&limit=1`,
+      {
+        headers: {
+          Accept: 'application/json',
+          'x-api-key': 'demo',
+        },
+      }
+    );
+
+    if (!response.ok) return null;
+
+    const data = await response.json() as {
+      collections?: Array<{
+        floorAsk?: {
+          price?: {
+            amount?: {
+              decimal?: number;
+            };
+          };
+        };
+      }>;
+    };
+
+    const eth = data.collections?.[0]?.floorAsk?.price?.amount?.decimal;
+    if (typeof eth !== 'number') return null;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const entry: FloorPriceCacheEntry = { price: eth, ts: Date.now() };
+        window.localStorage.setItem(cacheKey, JSON.stringify(entry));
+      } catch {
+        // Ignore storage failures.
+      }
+    }
+
+    return { eth };
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch NFTs from multiple wallets and merge into a single collection */
 export async function fetchMultiWallet(addresses: string[]): Promise<NFTCollection> {
   const results = await Promise.allSettled(addresses.map(a => fetchNFTsForWallet(a)));

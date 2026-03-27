@@ -8,6 +8,8 @@ import { initAnalytics } from "@/lib/analytics";
 import Home from "./pages/Home";
 import Setup from "./pages/Setup";
 import RemotePage from "./pages/Remote";
+import Collections from "./pages/Collections";
+import CollectionView from "./pages/CollectionView";
 
 function WalletRoute({ params }: { params: { wallet: string } }) {
   const search = useSearch();
@@ -28,12 +30,18 @@ function RemoteRoute({ params }: { params: { code: string } }) {
   return <RemotePage roomCode={params.code} />;
 }
 
+function CollectionViewRoute({ params }: { params: { slug: string } }) {
+  return <CollectionView params={params} />;
+}
+
 function Router() {
   return (
     <Switch>
       <Route path="/"               component={HomeRoute} />
       <Route path="/setup"          component={Setup} />
       <Route path="/remote/:code"   component={RemoteRoute} />
+      <Route path="/collections"    component={Collections} />
+      <Route path="/collection/:slug" component={CollectionViewRoute} />
       {/* Direct wallet URL: /0x... or /ezven.eth or /solana-address */}
       <Route path="/:wallet"        component={WalletRoute} />
       <Route path="/404"            component={NotFound} />
